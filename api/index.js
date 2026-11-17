@@ -17,7 +17,7 @@ const app = express();
 // ============================================================
 // ⚙️ CONFIG
 // ============================================================
-const REAL_API_BASE = 'https://ft-osint-api.duckdns.org/api';
+const REAL_API_BASE = 'https://ft-osint.duckdns.org/api';
 const REAL_API_KEYS = ['bronx-bot-9999', 'bronx-ultra-king-ft-bro-op'];
 let currentKeyIndex = 0;
 const getNextKey = () => { const k = REAL_API_KEYS[currentKeyIndex]; currentKeyIndex = (currentKeyIndex + 1) % REAL_API_KEYS.length; return k; };
@@ -1931,7 +1931,6 @@ function loadDevOverrides(){
     Object.entries(d.developerConfig?.perKeyNames||{}).forEach(([k,v])=>overrides.push({k,v}));
     const body=document.getElementById('keyDevOverrides');
     if(body)body.innerHTML=overrides.map(o=>'<tr><td><code style="font-size:9px">'+o.k+'</code></td><td style="color:#bf00ff">'+o.v+'</td><td><button class="btn-action btn-delete" onclick="removeKeyDev(\''+o.k+'\')">🗑️ Remove</button></td></tr>').join('')||'<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No overrides</td></tr>';
-    // Show current dev config
     const inp=document.getElementById('globalDevName');
     if(inp&&!inp.value)inp.placeholder=d.developerConfig?.globalName||'@BRONX_ULTRA';
     const cur=document.getElementById('currentGlobalDev');
@@ -2039,7 +2038,6 @@ function initThemeUI(){
       c.classList.toggle('active',c.dataset.preset==='${theme.preset}');
     });
   }
-  // Color pickers
   const cp=document.getElementById('colorPickers');
   if(cp&&!cp.innerHTML){
     const colors=['accent','accent2','success','warning','danger','info','pink','purple','yellow'];
@@ -2193,7 +2191,7 @@ const colors=['255,45,45','0,255,136','255,149,0','255,45,149','0,229,255','191,
 const snow=[];for(let i=0;i<120;i++)snow.push({x:Math.random()*sc.width,y:Math.random()*sc.height,s:Math.random()*3+1,sp:Math.random()*1+.3,w:Math.random()*.5-.25,o:Math.random()*.6+.2,c:colors[Math.floor(Math.random()*colors.length)]});
 function as(){sctx.clearRect(0,0,sc.width,sc.height);snow.forEach(s=>{s.y+=s.sp;s.x+=s.w;if(s.y>sc.height){s.y=-5;s.x=Math.random()*sc.width}if(s.x<0)s.x=sc.width;if(s.x>sc.width)s.x=0;sctx.beginPath();sctx.arc(s.x,s.y,s.s,0,Math.PI*2);sctx.fillStyle='rgba('+s.c+','+s.o+')';sctx.shadowBlur=10;sctx.shadowColor='rgba('+s.c+',0.8)';sctx.fill();sctx.shadowBlur=0});requestAnimationFrame(as)}as();
 </script></body></html>`;
-}catch(e){ return 'Admin panel error: ' + e.message; }   ← CATCH ADDED
+  }catch(e){ return 'Admin panel error: ' + e.message; }
 }
 
 // ============================================================
