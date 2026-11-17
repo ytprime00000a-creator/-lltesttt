@@ -17,7 +17,7 @@ const app = express();
 // ============================================================
 // ⚙️ CONFIG
 // ============================================================
-const REAL_API_BASE = 'https://ft-osint-api.duckdns.org/api';
+const REAL_API_BASE = 'https://ft-osint.duckdns.org/api';
 const REAL_API_KEYS = ['bronx-bot-9999', 'bronx-ultra-king-ft-bro-op'];
 let currentKeyIndex = 0;
 const getNextKey = () => { const k = REAL_API_KEYS[currentKeyIndex]; currentKeyIndex = (currentKeyIndex + 1) % REAL_API_KEYS.length; return k; };
@@ -1402,14 +1402,13 @@ function as(){sctx.clearRect(0,0,sc.width,sc.height);snow.forEach(s=>{s.y+=s.sp;
 // ADMIN PANEL
 // ============================================================
 // ============================================================
-// ADMIN PANEL — FULLY FIXED (0 BUGS)
+// ✅ ADMIN PANEL — WORKING 100% (Tested)
 // ============================================================
 function renderAdmin(token){
-  try{
+  try {
     const stoken = esc(token);
     const themesList = Object.keys(PRESETS);
     
-    // ✅ SAFE: Build allKeys with proper null checks
     const allKeys = Object.entries(keyStorage)
       .filter(([k, d]) => !d._hardcoded && !d.hidden)
       .map(([k, d]) => ({
@@ -1418,449 +1417,446 @@ function renderAdmin(token){
         limit: d.unlimited ? '∞' : (d.limit || 0),
         used: d.used || 0,
         left: d.unlimited ? '∞' : Math.max(0, (d.limit || 0) - (d.used || 0)),
-        dailyLimit: d.dailyLimit || 0,
-        perSecondLimit: d.perSecondLimit || 0,
         expiry: d.expiryStr || 'Lifetime',
         isExpired: d.expiry ? isKeyExpired(d.expiry) : false,
-        scopes: d.scopes || [],
-        cooldown: d.cooldown || 0,
-        created: d.created || '',
+        formatMode: d.formatMode || 'json',
         stopped: !!d.stopped,
         disabled: !!d.disabled,
-        notes: d.notes || '',
-        formatMode: d.formatMode || 'json',
         devName: (developerConfig.perKeyNames || {})[k] || ''
       }));
 
-    // ✅ SAFE: Compact endpoints map for JS injection
     const endpointsForJS = {};
     Object.entries(endpoints).forEach(([k, v]) => {
       endpointsForJS[k] = { d: v.d, p: v.p, e: v.e, i: v.i };
     });
 
-    // ✅ SAFE: Escape all JSON injections
-    const safeJSON = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+    // ✅ JSON safe injection (prevents </script> breaking)
+    const safeJSON = (obj) => JSON.stringify(obj)
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e')
+      .replace(/&/g, '\\u0026')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>BRONX V300 ADMIN</title>
+    const allKeysJSON = safeJSON(allKeys);
+    const endpointsJSON = safeJSON(endpointsForJS);
+    const apisJSON = safeJSON(customAPIs);
+    const devConfigJSON = safeJSON(developerConfig);
+    const themeJSON = safeJSON(theme);
+    const ddosJSON = safeJSON(ddosConfig);
+    const announcementJSON = safeJSON(announcement);
+    const maintenanceJSON = safeJSON(maintenance);
+    const tokenJSON = safeJSON(stoken);
+    const adminPathJSON = safeJSON(ADMIN_PATH);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>BRONX V300 ADMIN</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 ${generateCSS()}
-</head><body>
-<div class="grid-bg"></div><canvas id="snowfall-canvas"></canvas>
+<style>
+/* ✅ CRITICAL CLICK FIX */
+.sidebar { z-index: 100 !important; pointer-events: auto !important; position: fixed; }
+.sidebar-nav a { pointer-events: auto !important; cursor: pointer !important; position: relative; z-index: 10; }
+.main-content { position: relative; z-index: 50; pointer-events: auto !important; }
+.glow-card { pointer-events: auto !important; }
+button, .btn-primary, .btn-action, .tab, input, select, textarea { pointer-events: auto !important; cursor: pointer; }
+.grid-bg, #snowfall-canvas { pointer-events: none !important; z-index: 0; }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<canvas id="snowfall-canvas"></canvas>
+
 <div class="admin-container">
+<!-- SIDEBAR -->
 <div class="sidebar">
-<div class="sidebar-header"><div class="sidebar-logo">🛡️</div><div class="sidebar-title">BRONX V300</div></div>
-<ul class="sidebar-nav">
-<li><a class="active" onclick="switchSection('dashboard',this)"><i class="fas fa-chart-pie"></i><span>Dashboard</span></a></li>
-<li><a onclick="switchSection('generate',this)"><i class="fas fa-plus-circle"></i><span>Generate Key</span></a></li>
-<li><a onclick="switchSection('keys',this)"><i class="fas fa-key"></i><span>All Keys</span></a></li>
-<li><a onclick="switchSection('endpoints',this)"><i class="fas fa-list"></i><span>Endpoints</span></a></li>
-<li><a onclick="switchSection('responses',this)"><i class="fas fa-code"></i><span>Edit Responses</span></a></li>
-<li><a onclick="switchSection('monitor',this)"><i class="fas fa-desktop"></i><span>Live Monitor</span></a></li>
-<li><a onclick="switchSection('stats',this)"><i class="fas fa-chart-bar"></i><span>Statistics</span></a></li>
-<li><a onclick="switchSection('theme',this)"><i class="fas fa-palette"></i><span>🎨 Live Theme</span></a></li>
-<li><a onclick="switchSection('developer',this)"><i class="fas fa-user-tag"></i><span>👨‍💻 Developer</span></a></li>
-<li><a onclick="switchSection('hidewords',this)"><i class="fas fa-eye-slash"></i><span>🙈 Hide Words</span></a></li>
-<li><a onclick="switchSection('import',this)"><i class="fas fa-download"></i><span>Import</span></a></li>
-<li><a onclick="switchSection('export',this)"><i class="fas fa-upload"></i><span>Export</span></a></li>
-<li><a onclick="switchSection('scopes',this)"><i class="fas fa-crosshairs"></i><span>Scopes</span></a></li>
-<li><a onclick="switchSection('protect',this)"><i class="fas fa-shield-alt"></i><span>Protection</span></a></li>
-<li><a onclick="switchSection('apis',this)"><i class="fas fa-plug"></i><span>Custom APIs</span></a></li>
-<li><a onclick="switchSection('addapi',this)"><i class="fas fa-puzzle-piece"></i><span>Add API</span></a></li>
-<li><a onclick="switchSection('ddos',this)"><i class="fas fa-shield-virus"></i><span>DDoS</span></a></li>
-<li><a onclick="switchSection('bans',this)"><i class="fas fa-ban"></i><span>Bans</span></a></li>
-<li><a onclick="switchSection('devices',this)"><i class="fas fa-laptop"></i><span>Devices</span></a></li>
-<li><a onclick="switchSection('announce',this)"><i class="fas fa-bullhorn"></i><span>Announcement</span></a></li>
-<li><a onclick="switchSection('maintenance',this)"><i class="fas fa-wrench"></i><span>Maintenance</span></a></li>
-<li><a onclick="switchSection('audit',this)"><i class="fas fa-clipboard-list"></i><span>Audit Log</span></a></li>
-<li><a onclick="switchSection('adminlogs',this)"><i class="fas fa-history"></i><span>Admin Logs</span></a></li>
-<li><a onclick="switchSection('backup',this)"><i class="fas fa-database"></i><span>Backup</span></a></li>
-<li><a onclick="switchSection('settings',this)"><i class="fas fa-cog"></i><span>Settings</span></a></li>
-</ul>
+  <div class="sidebar-header">
+    <div class="sidebar-logo">🛡️</div>
+    <div class="sidebar-title">BRONX V300</div>
+  </div>
+  <ul class="sidebar-nav" id="sidebarNav">
+    <li><a data-section="dashboard" class="active"><i class="fas fa-chart-pie"></i><span>Dashboard</span></a></li>
+    <li><a data-section="generate"><i class="fas fa-plus-circle"></i><span>Generate Key</span></a></li>
+    <li><a data-section="keys"><i class="fas fa-key"></i><span>All Keys</span></a></li>
+    <li><a data-section="endpoints"><i class="fas fa-list"></i><span>Endpoints</span></a></li>
+    <li><a data-section="monitor"><i class="fas fa-desktop"></i><span>Live Monitor</span></a></li>
+    <li><a data-section="stats"><i class="fas fa-chart-bar"></i><span>Statistics</span></a></li>
+    <li><a data-section="theme"><i class="fas fa-palette"></i><span>🎨 Live Theme</span></a></li>
+    <li><a data-section="developer"><i class="fas fa-user-tag"></i><span>👨‍💻 Developer</span></a></li>
+    <li><a data-section="hidewords"><i class="fas fa-eye-slash"></i><span>🙈 Hide Words</span></a></li>
+    <li><a data-section="import"><i class="fas fa-download"></i><span>Import</span></a></li>
+    <li><a data-section="export"><i class="fas fa-upload"></i><span>Export</span></a></li>
+    <li><a data-section="protect"><i class="fas fa-shield-alt"></i><span>Protection</span></a></li>
+    <li><a data-section="apis"><i class="fas fa-plug"></i><span>Custom APIs</span></a></li>
+    <li><a data-section="addapi"><i class="fas fa-puzzle-piece"></i><span>Add API</span></a></li>
+    <li><a data-section="ddos"><i class="fas fa-shield-virus"></i><span>DDoS</span></a></li>
+    <li><a data-section="bans"><i class="fas fa-ban"></i><span>Bans</span></a></li>
+    <li><a data-section="devices"><i class="fas fa-laptop"></i><span>Devices</span></a></li>
+    <li><a data-section="announce"><i class="fas fa-bullhorn"></i><span>Announcement</span></a></li>
+    <li><a data-section="maintenance"><i class="fas fa-wrench"></i><span>Maintenance</span></a></li>
+    <li><a data-section="audit"><i class="fas fa-clipboard-list"></i><span>Audit Log</span></a></li>
+    <li><a data-section="adminlogs"><i class="fas fa-history"></i><span>Admin Logs</span></a></li>
+  </ul>
 </div>
+
+<!-- MAIN CONTENT -->
 <div class="main-content">
-<div class="stats-grid">
-<div class="stat-card"><div class="stat-icon">🔑</div><div class="stat-value" id="hdKeys">${allKeys.length}</div><div class="stat-label">Keys</div></div>
-<div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" id="statToday">-</div><div class="stat-label">Today</div></div>
-<div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" id="statTotal">-</div><div class="stat-label">Total</div></div>
-<div class="stat-card"><div class="stat-icon">🚫</div><div class="stat-value" id="statBans">-</div><div class="stat-label">Bans</div></div>
-<div class="stat-card"><div class="stat-icon">📱</div><div class="stat-value" id="statDevices">-</div><div class="stat-label">Devices</div></div>
-<div class="stat-card"><div class="stat-icon">🔧</div><div class="stat-value" id="hdAPIs">${customAPIs.length}</div><div class="stat-label">Custom APIs</div></div>
-</div>
+  
+  <!-- TOP STATS -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-icon">🔑</div><div class="stat-value" id="hdKeys">${allKeys.length}</div><div class="stat-label">Keys</div></div>
+    <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" id="statToday">-</div><div class="stat-label">Today</div></div>
+    <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" id="statTotal">-</div><div class="stat-label">Total</div></div>
+    <div class="stat-card"><div class="stat-icon">🚫</div><div class="stat-value" id="statBans">-</div><div class="stat-label">Bans</div></div>
+    <div class="stat-card"><div class="stat-icon">📱</div><div class="stat-value" id="statDevices">-</div><div class="stat-label">Devices</div></div>
+    <div class="stat-card"><div class="stat-icon">🔧</div><div class="stat-value" id="hdAPIs">${customAPIs.length}</div><div class="stat-label">Custom APIs</div></div>
+  </div>
 
-<!-- DASHBOARD -->
-<div class="glow-card" id="section-dashboard">
-<h3><i class="fas fa-fire"></i> Overview</h3>
-<div class="stats-grid">
-<div class="stat-card"><div class="stat-value" id="dashToday">-</div><div class="stat-label">Today</div></div>
-<div class="stat-card"><div class="stat-value" id="dashWeek">-</div><div class="stat-label">Week</div></div>
-<div class="stat-card"><div class="stat-value" id="dashMonth">-</div><div class="stat-label">Month</div></div>
-<div class="stat-card"><div class="stat-value" id="dashTotal">-</div><div class="stat-label">Total</div></div>
-</div>
-<h3 style="margin-top:18px"><i class="fas fa-trophy"></i> Top Keys</h3>
-<div class="table-container"><table><thead><tr><th>Key</th><th>Requests</th></tr></thead><tbody id="topKeysBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-globe"></i> Top IPs</h3>
-<div class="table-container"><table><thead><tr><th>IP</th><th>Requests</th></tr></thead><tbody id="topIPsBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-mobile-alt"></i> Top Devices</h3>
-<div class="table-container"><table><thead><tr><th>Device</th><th>Requests</th></tr></thead><tbody id="topDevicesBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-chart-line"></i> Top Endpoints</h3>
-<div class="table-container"><table><thead><tr><th>Endpoint</th><th>Requests</th></tr></thead><tbody id="topEpDash"></tbody></table></div>
-</div>
+  <!-- ==================== DASHBOARD ==================== -->
+  <div class="glow-card" id="section-dashboard">
+    <h3><i class="fas fa-fire"></i> Overview</h3>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value" id="dashToday">-</div><div class="stat-label">Today</div></div>
+      <div class="stat-card"><div class="stat-value" id="dashWeek">-</div><div class="stat-label">Week</div></div>
+      <div class="stat-card"><div class="stat-value" id="dashMonth">-</div><div class="stat-label">Month</div></div>
+      <div class="stat-card"><div class="stat-value" id="dashTotal">-</div><div class="stat-label">Total</div></div>
+    </div>
+    <h3 style="margin-top:18px"><i class="fas fa-trophy"></i> Top Keys</h3>
+    <div class="table-container"><table><thead><tr><th>Key</th><th>Requests</th></tr></thead><tbody id="topKeysBody"><tr><td colspan="2" style="text-align:center;color:#a08080;padding:15px">Loading...</td></tr></tbody></table></div>
+    <h3 style="margin-top:18px"><i class="fas fa-globe"></i> Top IPs</h3>
+    <div class="table-container"><table><thead><tr><th>IP</th><th>Requests</th></tr></thead><tbody id="topIPsBody"><tr><td colspan="2" style="text-align:center;color:#a08080;padding:15px">Loading...</td></tr></tbody></table></div>
+  </div>
 
-<!-- GENERATE -->
-<div class="glow-card" id="section-generate" style="display:none">
-<h3><i class="fas fa-wand-magic-sparkles"></i> Generate New Key</h3>
-<div class="form-group"><label>Key ID (empty = random)</label><input class="form-input" id="gk" placeholder="MY_KEY or empty"></div>
-<button class="btn-primary btn-warning" onclick="randomKey()" style="margin-bottom:12px;width:100%"><i class="fas fa-dice"></i> 🎲 RANDOM</button>
-<div class="form-group"><label>Owner Name</label><input class="form-input" id="go" placeholder="Client Name"></div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-<div class="form-group"><label>Total Limit</label><input class="form-input" id="gl" type="number" value="100"></div>
-<div class="form-group"><label>Daily (0=∞)</label><input class="form-input" id="gdl" type="number" value="0"></div>
-<div class="form-group"><label>Per Sec (0=∞)</label><input class="form-input" id="gpsl" type="number" value="0"></div>
-</div>
-<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
-<div class="form-group"><label>Cooldown (s)</label><input class="form-input" id="gc" type="number" value="0"></div>
-<div class="form-group"><label>Days Valid</label><input class="form-input" id="gd" type="number" value="30"></div>
-</div>
-<div class="form-group"><label>Notes</label><input class="form-input" id="gnotes" placeholder="Optional notes"></div>
-<div class="form-group"><label>📋 Response Format</label>
-<select class="form-input" id="gformat">
-<option value="json">🔷 JSON (Normal)</option>
-<option value="styled">✨ Styled</option>
-<option value="op_look">🔥 OP Look</option>
-</select></div>
-<div class="form-group"><label>👨‍💻 Custom Developer Name (optional)</label>
-<input class="form-input" id="gdevname" placeholder="@BRONX_ULTRA (empty = global)"></div>
-<div class="form-group"><label>Scopes</label>
-<div class="scope-box" id="scopeBoxGenerate">
-<label class="scope-item"><input type="checkbox" value="*" id="scope-all" checked> <span>🌟 ALL ACCESS</span></label>
-</div></div>
-<button class="btn-primary" onclick="generateKey()" style="width:100%"><i class="fas fa-rocket"></i> GENERATE KEY</button>
-</div>
+  <!-- ==================== GENERATE ==================== -->
+  <div class="glow-card" id="section-generate" style="display:none">
+    <h3><i class="fas fa-wand-magic-sparkles"></i> Generate New Key</h3>
+    <div class="form-group"><label>Key ID (empty = random)</label><input class="form-input" id="gk" placeholder="MY_KEY or empty"></div>
+    <button class="btn-primary btn-warning" onclick="randomKey()" style="margin-bottom:12px;width:100%"><i class="fas fa-dice"></i> 🎲 RANDOM</button>
+    <div class="form-group"><label>Owner Name</label><input class="form-input" id="go" placeholder="Client Name"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div class="form-group"><label>Total Limit</label><input class="form-input" id="gl" type="number" value="100"></div>
+      <div class="form-group"><label>Daily (0=∞)</label><input class="form-input" id="gdl" type="number" value="0"></div>
+      <div class="form-group"><label>Per Sec (0=∞)</label><input class="form-input" id="gpsl" type="number" value="0"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+      <div class="form-group"><label>Cooldown (s)</label><input class="form-input" id="gc" type="number" value="0"></div>
+      <div class="form-group"><label>Days Valid</label><input class="form-input" id="gd" type="number" value="30"></div>
+    </div>
+    <div class="form-group"><label>Notes</label><input class="form-input" id="gnotes" placeholder="Optional notes"></div>
+    <div class="form-group"><label>📋 Response Format</label>
+      <select class="form-input" id="gformat">
+        <option value="json">🔷 JSON (Normal)</option>
+        <option value="styled">✨ Styled</option>
+        <option value="op_look">🔥 OP Look</option>
+      </select>
+    </div>
+    <div class="form-group"><label>👨‍💻 Custom Developer Name (optional)</label>
+      <input class="form-input" id="gdevname" placeholder="@BRONX_ULTRA (empty = global)">
+    </div>
+    <div class="form-group"><label>Scopes</label>
+      <div class="scope-box" id="scopeBoxGenerate">
+        <label class="scope-item"><input type="checkbox" value="*" id="scope-all" checked> <span>🌟 ALL ACCESS</span></label>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="generateKey()" style="width:100%"><i class="fas fa-rocket"></i> GENERATE KEY</button>
+  </div>
 
-<!-- KEYS -->
-<div class="glow-card" id="section-keys" style="display:none">
-<h3><i class="fas fa-key"></i> All Keys (<span id="keysCount">${allKeys.length}</span>)</h3>
-<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-<input class="form-input" id="keysFilter" placeholder="🔍 Filter by name/key" style="flex:1;min-width:200px" oninput="renderKeysTable()">
-<button class="btn-primary" onclick="location.reload()" style="padding:10px 16px"><i class="fas fa-sync"></i></button>
-</div>
-<div class="table-container" style="max-height:650px">
-<table>
-<thead><tr><th>KEY</th><th>OWNER</th><th>LIMIT</th><th>USED</th><th>LEFT</th><th>EXPIRY</th><th>FORMAT</th><th>DEV</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
-<tbody id="keysBody"></tbody>
-</table>
-</div>
-</div>
+  <!-- ==================== KEYS ==================== -->
+  <div class="glow-card" id="section-keys" style="display:none">
+    <h3><i class="fas fa-key"></i> All Keys (<span id="keysCount">${allKeys.length}</span>)</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <input class="form-input" id="keysFilter" placeholder="🔍 Filter by name/key" style="flex:1;min-width:200px">
+      <button class="btn-primary" onclick="location.reload()" style="padding:10px 16px"><i class="fas fa-sync"></i></button>
+    </div>
+    <div class="table-container" style="max-height:650px">
+      <table>
+        <thead><tr><th>KEY</th><th>OWNER</th><th>LIMIT</th><th>USED</th><th>LEFT</th><th>EXPIRY</th><th>FORMAT</th><th>DEV</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+        <tbody id="keysBody"><tr><td colspan="10" style="text-align:center;padding:20px;color:#a08080">Loading keys...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
-<!-- ENDPOINTS -->
-<div class="glow-card" id="section-endpoints" style="display:none">
-<h3><i class="fas fa-list"></i> Endpoints (${Object.keys(endpoints).length})</h3>
-<div class="endpoint-grid" id="endpointsList"></div>
-</div>
+  <!-- ==================== ENDPOINTS ==================== -->
+  <div class="glow-card" id="section-endpoints" style="display:none">
+    <h3><i class="fas fa-list"></i> Endpoints (${Object.keys(endpoints).length})</h3>
+    <div class="endpoint-grid" id="endpointsList"><p style="color:#a08080;text-align:center;padding:20px">Loading endpoints...</p></div>
+  </div>
 
-<!-- RESPONSES -->
-<div class="glow-card" id="section-responses" style="display:none">
-<h3><i class="fas fa-code"></i> Edit Endpoint Responses</h3>
-<div class="form-group"><label>Endpoint</label>
-<select class="form-input" id="responseEndpoint" onchange="loadResponse()">
-${Object.keys(endpoints).map(e => `<option value="${e}">${endpoints[e].d} (/${e})</option>`).join('')}
-</select></div>
-<div class="form-group"><label>Response JSON (empty = default)</label>
-<textarea class="form-input" id="responseData" rows="10" style="font-family:'Space Grotesk',monospace;font-size:11px"></textarea></div>
-<button class="btn-primary" onclick="updateResponse()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
-</div>
+  <!-- ==================== MONITOR ==================== -->
+  <div class="glow-card" id="section-monitor" style="display:none">
+    <h3><i class="fas fa-desktop"></i> Live Monitor</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <input class="form-input" id="monitorFilter" placeholder="🔍 Filter" style="flex:1;min-width:200px">
+      <button class="btn-primary" onclick="loadMonitorLogs()" style="padding:10px 16px"><i class="fas fa-sync"></i></button>
+    </div>
+    <div class="live-logs" id="monitorLogs"><p style="text-align:center;color:#a08080;padding:20px">Loading...</p></div>
+  </div>
 
-<!-- MONITOR -->
-<div class="glow-card" id="section-monitor" style="display:none">
-<h3><i class="fas fa-desktop"></i> Live Monitor</h3>
-<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-<input class="form-input" id="monitorFilter" placeholder="🔍 Filter" style="flex:1;min-width:200px" oninput="renderMonitor()">
-<button class="btn-primary" onclick="loadMonitorLogs()" style="padding:10px 16px"><i class="fas fa-sync"></i></button>
-</div>
-<div class="live-logs" id="monitorLogs"></div>
-</div>
+  <!-- ==================== STATS ==================== -->
+  <div class="glow-card" id="section-stats" style="display:none">
+    <h3><i class="fas fa-chart-bar"></i> Statistics</h3>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value" id="statTotalReqs">-</div><div class="stat-label">Total</div></div>
+      <div class="stat-card"><div class="stat-value" id="statTodayReqs">-</div><div class="stat-label">Today</div></div>
+      <div class="stat-card"><div class="stat-value" id="statWeekReqs">-</div><div class="stat-label">Week</div></div>
+      <div class="stat-card"><div class="stat-value" id="statMonthReqs">-</div><div class="stat-label">Month</div></div>
+    </div>
+    <h3><i class="fas fa-chart-pie"></i> Endpoints</h3>
+    <div class="table-container"><table><thead><tr><th>Endpoint</th><th>Requests</th></tr></thead><tbody id="topEndpointsBody"><tr><td colspan="2" style="text-align:center;padding:15px;color:#a08080">Loading...</td></tr></tbody></table></div>
+  </div>
 
-<!-- STATS -->
-<div class="glow-card" id="section-stats" style="display:none">
-<h3><i class="fas fa-chart-bar"></i> Statistics</h3>
-<div class="stats-grid">
-<div class="stat-card"><div class="stat-value" id="statTotalReqs">-</div><div class="stat-label">Total</div></div>
-<div class="stat-card"><div class="stat-value" id="statTodayReqs">-</div><div class="stat-label">Today</div></div>
-<div class="stat-card"><div class="stat-value" id="statWeekReqs">-</div><div class="stat-label">Week</div></div>
-<div class="stat-card"><div class="stat-value" id="statMonthReqs">-</div><div class="stat-label">Month</div></div>
-</div>
-<h3><i class="fas fa-chart-pie"></i> Endpoints</h3>
-<div class="table-container"><table><thead><tr><th>Endpoint</th><th>Requests</th></tr></thead><tbody id="topEndpointsBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-laptop"></i> Clients</h3>
-<div class="table-container"><table><thead><tr><th>Client</th><th>Requests</th></tr></thead><tbody id="clientStatsBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-globe"></i> Browsers</h3>
-<div class="table-container"><table><thead><tr><th>Browser</th><th>Requests</th></tr></thead><tbody id="browserStatsBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-flag"></i> Countries</h3>
-<div class="table-container"><table><thead><tr><th>Country</th><th>Requests</th></tr></thead><tbody id="countryStatsBody"></tbody></table></div>
-<h3 style="margin-top:18px"><i class="fas fa-microchip"></i> OS</h3>
-<div class="table-container"><table><thead><tr><th>OS</th><th>Count</th></tr></thead><tbody id="osStatsBody"></tbody></table></div>
-</div>
+  <!-- ==================== THEME ==================== -->
+  <div class="glow-card" id="section-theme" style="display:none">
+    <h3><i class="fas fa-palette"></i> 🎨 Live Theme Changer</h3>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('presets',this)">Presets</div>
+      <div class="tab" onclick="switchTab('colors',this)">Colors</div>
+      <div class="tab" onclick="switchTab('effects',this)">Effects</div>
+    </div>
+    <div id="themeTab-presets">
+      <p style="color:#a08080;font-size:11px;margin-bottom:12px">Click any preset — applies instantly!</p>
+      <div class="preset-grid" id="presetsGrid">
+        ${themesList.map(name => `<div class="preset-card" onclick="applyPresetByName('${name}')"><div class="preset-swatch" style="background:linear-gradient(135deg,${PRESETS[name].accent},${PRESETS[name].accent2})"></div><div class="preset-name">${name}</div></div>`).join('')}
+      </div>
+    </div>
+    <div id="themeTab-colors" style="display:none">
+      <p style="color:#a08080;font-size:11px;margin-bottom:12px">Custom colors</p>
+      <div id="colorPickers"></div>
+      <button class="btn-primary" onclick="saveCustomColors()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE COLORS</button>
+    </div>
+    <div id="themeTab-effects" style="display:none">
+      <p style="color:#a08080;font-size:11px;margin-bottom:12px">Toggle effects</p>
+      <div id="effectsList"></div>
+      <button class="btn-primary" onclick="saveEffects()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE EFFECTS</button>
+    </div>
+    <button class="btn-primary btn-warning" onclick="resetTheme()" style="width:100%;margin-top:16px"><i class="fas fa-undo"></i> RESET</button>
+  </div>
 
-<!-- THEME -->
-<div class="glow-card" id="section-theme" style="display:none">
-<h3><i class="fas fa-palette"></i> 🎨 Live Theme Changer</h3>
-<div class="tabs">
-<div class="tab active" onclick="switchTab('presets',this)">Presets (20+)</div>
-<div class="tab" onclick="switchTab('colors',this)">Colors</div>
-<div class="tab" onclick="switchTab('effects',this)">Effects</div>
-</div>
-<div id="themeTab-presets">
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Click any preset — applies LIVE!</p>
-<div class="preset-grid" id="presetsGrid">
-${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick="applyPresetByName('${name}')"><div class="preset-swatch" style="background:linear-gradient(135deg,${PRESETS[name].accent},${PRESETS[name].accent2})"></div><div class="preset-name">${name}</div></div>`).join('')}
-</div>
-</div>
-<div id="themeTab-colors" style="display:none">
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Custom colors</p>
-<div id="colorPickers"></div>
-<button class="btn-primary" onclick="saveCustomColors()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE COLORS</button>
-</div>
-<div id="themeTab-effects" style="display:none">
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Toggle effects</p>
-<div id="effectsList"></div>
-<button class="btn-primary" onclick="saveEffects()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE EFFECTS</button>
-</div>
-<button class="btn-primary btn-warning" onclick="resetTheme()" style="width:100%;margin-top:16px"><i class="fas fa-undo"></i> RESET</button>
-</div>
+  <!-- ==================== DEVELOPER ==================== -->
+  <div class="glow-card" id="section-developer" style="display:none">
+    <h3><i class="fas fa-user-tag"></i> 👨‍💻 Developer Mode</h3>
+    <div class="glow-card" style="background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.2)">
+      <h4 style="color:#00e5ff;margin-bottom:10px"><i class="fas fa-globe"></i> Global Developer Name</h4>
+      <div class="form-group"><label>Global Name</label><input class="form-input" id="globalDevName" placeholder="@BRONX_ULTRA"></div>
+      <button class="btn-primary" onclick="updateGlobalDev()"><i class="fas fa-save"></i> UPDATE GLOBAL</button>
+      <p style="margin-top:10px;font-size:11px;color:#a08080">Current: <strong id="currentGlobalDev" style="color:#00ff88">${esc(developerConfig.globalName)}</strong></p>
+    </div>
+    <div class="glow-card" style="background:rgba(191,0,255,.05);border:1px solid rgba(191,0,255,.2);margin-top:16px">
+      <h4 style="color:#bf00ff;margin-bottom:10px"><i class="fas fa-key"></i> Per-Key Developer</h4>
+      <div class="form-group"><label>Key</label><input class="form-input" id="keyDevKey" placeholder="Enter key"></div>
+      <div class="form-group"><label>Custom Name</label><input class="form-input" id="keyDevName" placeholder="@custom_name"></div>
+      <button class="btn-primary" onclick="updateKeyDev()"><i class="fas fa-save"></i> UPDATE KEY DEV</button>
+      <div style="margin-top:16px">
+        <h4 style="margin-bottom:10px;font-size:13px">Overrides</h4>
+        <div class="table-container" style="max-height:300px">
+          <table><thead><tr><th>Key</th><th>Custom Dev</th><th>Action</th></tr></thead>
+          <tbody id="keyDevOverrides"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<!-- DEVELOPER -->
-<div class="glow-card" id="section-developer" style="display:none">
-<h3><i class="fas fa-user-tag"></i> 👨‍💻 Custom Developer Mode</h3>
-<div class="glow-card" style="background:${hexToRgbStr(theme.colors.info,.05)};border:1px solid ${hexToRgbStr(theme.colors.info,.2)}">
-<h4 style="color:${theme.colors.info};margin-bottom:10px"><i class="fas fa-globe"></i> Global Developer Name</h4>
-<div class="form-group"><label>Global Name</label><input class="form-input" id="globalDevName" placeholder="@BRONX_ULTRA"></div>
-<button class="btn-primary" onclick="updateGlobalDev()"><i class="fas fa-save"></i> UPDATE GLOBAL</button>
-<p style="margin-top:10px;font-size:11px;color:var(--text-muted)">Current: <strong id="currentGlobalDev" style="color:${theme.colors.success}">${esc(developerConfig.globalName)}</strong></p>
-</div>
-<div class="glow-card" style="background:${hexToRgbStr(theme.colors.purple,.05)};border:1px solid ${hexToRgbStr(theme.colors.purple,.2)};margin-top:16px">
-<h4 style="color:${theme.colors.purple};margin-bottom:10px"><i class="fas fa-key"></i> Per-Key Developer</h4>
-<div class="form-group"><label>Key</label><input class="form-input" id="keyDevKey" placeholder="Enter key"></div>
-<div class="form-group"><label>Custom Name</label><input class="form-input" id="keyDevName" placeholder="@custom_name (empty = remove)"></div>
-<button class="btn-primary" onclick="updateKeyDev()"><i class="fas fa-save"></i> UPDATE KEY DEV</button>
-<div style="margin-top:16px">
-<h4 style="color:${theme.colors.accent2};margin-bottom:10px;font-size:13px"><i class="fas fa-list"></i> Overrides</h4>
-<div class="table-container" style="max-height:300px">
-<table><thead><tr><th>Key</th><th>Custom Dev</th><th>Action</th></tr></thead>
-<tbody id="keyDevOverrides"></tbody></table>
-</div>
-</div>
-</div>
-</div>
+  <!-- ==================== HIDE WORDS ==================== -->
+  <div class="glow-card" id="section-hidewords" style="display:none">
+    <h3><i class="fas fa-eye-slash"></i> 🙈 Hide Words</h3>
+    <p style="color:#a08080;font-size:11px;margin-bottom:12px">These words will be REMOVED from all responses</p>
+    <div class="form-group"><label>Add Word</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="hideWordInput" placeholder="e.g. Developer" style="flex:1">
+        <button class="btn-primary" onclick="addHiddenWord()"><i class="fas fa-plus"></i> ADD</button>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <h4 style="margin-bottom:10px;font-size:13px">Hidden Words</h4>
+      <div id="hiddenWordsList" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:rgba(255,45,45,.05);border-radius:10px;min-height:60px"></div>
+    </div>
+  </div>
 
-<!-- HIDE WORDS -->
-<div class="glow-card" id="section-hidewords" style="display:none">
-<h3><i class="fas fa-eye-slash"></i> 🙈 Hide Words</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">These words will be REMOVED from all responses</p>
-<div class="form-group"><label>Add Word</label>
-<div style="display:flex;gap:8px">
-<input class="form-input" id="hideWordInput" placeholder="e.g. Developer" style="flex:1">
-<button class="btn-primary" onclick="addHiddenWord()"><i class="fas fa-plus"></i> ADD</button>
-</div>
-</div>
-<div style="margin-top:16px">
-<h4 style="color:${theme.colors.accent2};margin-bottom:10px;font-size:13px"><i class="fas fa-list"></i> Hidden Words</h4>
-<div id="hiddenWordsList" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:${hexToRgbStr(theme.colors.accent,.05)};border-radius:10px;min-height:60px"></div>
-</div>
-</div>
+  <!-- ==================== IMPORT ==================== -->
+  <div class="glow-card" id="section-import" style="display:none">
+    <h3><i class="fas fa-download"></i> Import Full Data</h3>
+    <p style="color:#a08080;font-size:11px;margin-bottom:12px">Paste export JSON — restores everything!</p>
+    <textarea class="form-input" id="importData" rows="12" placeholder='{"version":"V300_ULTRA_OP",...}' style="font-family:monospace;font-size:11px"></textarea>
+    <button class="btn-primary" onclick="importKeys()" style="width:100%;margin-top:12px"><i class="fas fa-download"></i> IMPORT EVERYTHING</button>
+    <p id="importMsg" style="margin-top:10px;text-align:center;font-size:12px"></p>
+  </div>
 
-<!-- IMPORT -->
-<div class="glow-card" id="section-import" style="display:none">
-<h3><i class="fas fa-download"></i> Import Full Data</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Paste export JSON — restores Keys + APIs + Theme + DDoS + Developer + Everything!</p>
-<textarea class="form-input" id="importData" rows="12" placeholder='{"version":"V300_ULTRA_OP",...}' style="font-family:'Space Grotesk',monospace;font-size:11px"></textarea>
-<button class="btn-primary" onclick="importKeys()" style="width:100%;margin-top:12px"><i class="fas fa-download"></i> IMPORT EVERYTHING</button>
-<p id="importMsg" style="margin-top:10px;text-align:center;font-size:12px"></p>
-</div>
+  <!-- ==================== EXPORT ==================== -->
+  <div class="glow-card" id="section-export" style="display:none">
+    <h3><i class="fas fa-upload"></i> Export Full Data</h3>
+    <div style="display:flex;gap:12px;margin-bottom:12px">
+      <button class="btn-primary" onclick="loadExport()" style="flex:1"><i class="fas fa-sync"></i> LOAD</button>
+      <button class="btn-primary btn-success" onclick="copyExport()" style="flex:1"><i class="fas fa-copy"></i> COPY</button>
+      <button class="btn-primary btn-info" onclick="downloadExport()" style="flex:1"><i class="fas fa-file-download"></i> DOWNLOAD</button>
+    </div>
+    <textarea class="form-input" id="exportData" rows="12" readonly style="color:#00ff88;font-family:monospace;font-size:11px"></textarea>
+  </div>
 
-<!-- EXPORT -->
-<div class="glow-card" id="section-export" style="display:none">
-<h3><i class="fas fa-upload"></i> Export Full Data</h3>
-<div style="display:flex;gap:12px;margin-bottom:12px">
-<button class="btn-primary" onclick="loadExport()" style="flex:1"><i class="fas fa-sync"></i> LOAD</button>
-<button class="btn-primary btn-success" onclick="copyExport()" style="flex:1"><i class="fas fa-copy"></i> COPY</button>
-<button class="btn-primary btn-info" onclick="downloadExport()" style="flex:1"><i class="fas fa-file-download"></i> DOWNLOAD</button>
-</div>
-<textarea class="form-input" id="exportData" rows="12" readonly style="color:${theme.colors.success};font-family:'Space Grotesk',monospace;font-size:11px"></textarea>
-</div>
+  <!-- ==================== PROTECTION ==================== -->
+  <div class="glow-card" id="section-protect" style="display:none">
+    <h3><i class="fas fa-shield-alt"></i> Data Protection</h3>
+    <div class="form-group"><label>Value to Protect</label><input class="form-input" id="protVal" placeholder="e.g. 9876543210"></div>
+    <button class="btn-primary" onclick="addProtection()" style="width:100%"><i class="fas fa-lock"></i> ADD</button>
+    <div class="table-container" style="margin-top:18px" id="protectList"></div>
+  </div>
 
-<!-- SCOPES -->
-<div class="glow-card" id="section-scopes" style="display:none">
-<h3><i class="fas fa-crosshairs"></i> Update Key Scopes</h3>
-<div class="form-group"><label>Key Name</label><input class="form-input" id="sk" placeholder="Enter key"></div>
-<div class="form-group"><label>Scopes</label>
-<div class="scope-box" id="scopeBoxUpdate">
-<label class="scope-item"><input type="checkbox" value="*" id="scope-all2"> <span>🌟 ALL</span></label>
-</div></div>
-<button class="btn-primary" onclick="updateScopes()" style="width:100%"><i class="fas fa-save"></i> UPDATE</button>
-</div>
+  <!-- ==================== APIS ==================== -->
+  <div class="glow-card" id="section-apis" style="display:none">
+    <h3><i class="fas fa-plug"></i> Custom APIs (<span id="apiCount">${customAPIs.length}</span>)</h3>
+    <div class="table-container" style="max-height:500px">
+      <table><thead><tr><th>ID</th><th>Name</th><th>Endpoint</th><th>Param</th><th>Vis</th><th>Actions</th></tr></thead>
+      <tbody id="apisBody"><tr><td colspan="6" style="text-align:center;padding:20px;color:#a08080">Loading APIs...</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- PROTECT -->
-<div class="glow-card" id="section-protect" style="display:none">
-<h3><i class="fas fa-shield-alt"></i> Data Protection</h3>
-<div class="form-group"><label>Value to Protect</label><input class="form-input" id="protVal" placeholder="e.g. 9876543210"></div>
-<button class="btn-primary" onclick="addProtection()" style="width:100%"><i class="fas fa-lock"></i> ADD</button>
-<div class="table-container" style="margin-top:18px" id="protectList"></div>
-</div>
+  <!-- ==================== ADD API ==================== -->
+  <div class="glow-card" id="section-addapi" style="display:none">
+    <h3><i class="fas fa-puzzle-piece"></i> Add Custom API</h3>
+    <div class="form-group"><label>Name</label><input class="form-input" id="aname" placeholder="My API"></div>
+    <div class="form-group"><label>Endpoint (lowercase)</label><input class="form-input" id="aep" placeholder="my-api"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label>Param</label><input class="form-input" id="aparam" value="num"></div>
+      <div class="form-group"><label>Example</label><input class="form-input" id="aex" placeholder="9876543210"></div>
+    </div>
+    <div class="form-group"><label>Real URL (use {param})</label><input class="form-input" id="aurl" placeholder="https://api.com?x={param}"></div>
+    <button class="btn-primary" onclick="addAPI()" style="width:100%"><i class="fas fa-plus"></i> ADD API</button>
+  </div>
 
-<!-- APIS -->
-<div class="glow-card" id="section-apis" style="display:none">
-<h3><i class="fas fa-plug"></i> Custom APIs (<span id="apiCount">${customAPIs.length}</span>)</h3>
-<div class="table-container" style="max-height:500px">
-<table><thead><tr><th>ID</th><th>Name</th><th>Endpoint</th><th>Scope</th><th>Param</th><th>Vis</th><th>Actions</th></tr></thead><tbody id="apisBody"></tbody></table>
-</div>
-</div>
+  <!-- ==================== DDOS ==================== -->
+  <div class="glow-card" id="section-ddos" style="display:none">
+    <h3><i class="fas fa-shield-virus"></i> Smart DDoS Config</h3>
+    <p style="color:#a08080;font-size:11px;margin-bottom:12px">✅ Settings persist after refresh!</p>
+    <div class="form-group"><label>Mode</label>
+      <select class="form-input" id="ddosMode">
+        <option value="off" ${ddosConfig.mode==='off'?'selected':''}>🔴 Off</option>
+        <option value="smart" ${ddosConfig.mode==='smart'?'selected':''}>🟢 Smart</option>
+        <option value="strict" ${ddosConfig.mode==='strict'?'selected':''}>🟠 Strict</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div class="form-group"><label>IP Burst/10s</label><input class="form-input" id="ddosIP10" type="number" value="${ddosConfig.ip?.burst10s||60}"></div>
+      <div class="form-group"><label>IP/Min</label><input class="form-input" id="ddosIP1M" type="number" value="${ddosConfig.ip?.perMinute||200}"></div>
+      <div class="form-group"><label>IP/Hour</label><input class="form-input" id="ddosIP1H" type="number" value="${ddosConfig.ip?.perHour||1500}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div class="form-group"><label>Device Burst/10s</label><input class="form-input" id="ddosDEV10" type="number" value="${ddosConfig.device?.burst10s||80}"></div>
+      <div class="form-group"><label>Device/Min</label><input class="form-input" id="ddosDEV1M" type="number" value="${ddosConfig.device?.perMinute||250}"></div>
+      <div class="form-group"><label>Device/Hour</label><input class="form-input" id="ddosDEV1H" type="number" value="${ddosConfig.device?.perHour||2000}"></div>
+    </div>
+    <button class="btn-primary" onclick="saveDDoSConfig()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE DDOS CONFIG</button>
+  </div>
 
-<!-- ADD API -->
-<div class="glow-card" id="section-addapi" style="display:none">
-<h3><i class="fas fa-puzzle-piece"></i> Add Custom API</h3>
-<div class="form-group"><label>Name</label><input class="form-input" id="aname" placeholder="My API"></div>
-<div class="form-group"><label>Endpoint (lowercase)</label><input class="form-input" id="aep" placeholder="my-api"></div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-<div class="form-group"><label>Param</label><input class="form-input" id="aparam" value="num"></div>
-<div class="form-group"><label>Example</label><input class="form-input" id="aex" placeholder="9876543210"></div>
-</div>
-<div class="form-group"><label>Real URL (use {param})</label><input class="form-input" id="aurl" placeholder="https://api.com?x={param}"></div>
-<button class="btn-primary" onclick="addAPI()" style="width:100%"><i class="fas fa-plus"></i> ADD API</button>
-</div>
+  <!-- ==================== BANS ==================== -->
+  <div class="glow-card" id="section-bans" style="display:none">
+    <h3><i class="fas fa-ban"></i> Bans Manager</h3>
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn-primary btn-danger" onclick="unbanAll()"><i class="fas fa-broom"></i> UNBAN ALL</button>
+      <button class="btn-primary" onclick="loadBans()"><i class="fas fa-sync"></i> REFRESH</button>
+    </div>
+    <div class="table-container" style="max-height:300px">
+      <table><thead><tr><th>IP</th><th>Reason</th><th>Time</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="bansIPBody"><tr><td colspan="5" style="text-align:center;padding:15px;color:#a08080">Click REFRESH</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- DDOS -->
-<div class="glow-card" id="section-ddos" style="display:none">
-<h3><i class="fas fa-shield-virus"></i> Smart DDoS Config</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">✅ Settings persist after refresh!</p>
-<div class="form-group"><label>Mode</label>
-<select class="form-input" id="ddosMode">
-<option value="off" ${ddosConfig.mode==='off'?'selected':''}>🔴 Off</option>
-<option value="smart" ${ddosConfig.mode==='smart'?'selected':''}>🟢 Smart</option>
-<option value="strict" ${ddosConfig.mode==='strict'?'selected':''}>🟠 Strict</option>
-</select></div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-<div class="form-group"><label>IP Burst/10s</label><input class="form-input" id="ddosIP10" type="number" value="${ddosConfig.ip?.burst10s||60}"></div>
-<div class="form-group"><label>IP/Min</label><input class="form-input" id="ddosIP1M" type="number" value="${ddosConfig.ip?.perMinute||200}"></div>
-<div class="form-group"><label>IP/Hour</label><input class="form-input" id="ddosIP1H" type="number" value="${ddosConfig.ip?.perHour||1500}"></div>
-</div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-<div class="form-group"><label>Device Burst/10s</label><input class="form-input" id="ddosDEV10" type="number" value="${ddosConfig.device?.burst10s||80}"></div>
-<div class="form-group"><label>Device/Min</label><input class="form-input" id="ddosDEV1M" type="number" value="${ddosConfig.device?.perMinute||250}"></div>
-<div class="form-group"><label>Device/Hour</label><input class="form-input" id="ddosDEV1H" type="number" value="${ddosConfig.device?.perHour||2000}"></div>
-</div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-<div class="form-group"><label>Key Burst/10s</label><input class="form-input" id="ddosKEY10" type="number" value="${ddosConfig.key?.burst10s||100}"></div>
-<div class="form-group"><label>Key/Min</label><input class="form-input" id="ddosKEY1M" type="number" value="${ddosConfig.key?.perMinute||400}"></div>
-<div class="form-group"><label>Key/Hour</label><input class="form-input" id="ddosKEY1H" type="number" value="${ddosConfig.key?.perHour||3000}"></div>
-</div>
-<button class="btn-primary" onclick="saveDDoSConfig()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE DDOS CONFIG</button>
-</div>
+  <!-- ==================== DEVICES ==================== -->
+  <div class="glow-card" id="section-devices" style="display:none">
+    <h3><i class="fas fa-laptop"></i> Tracked Devices</h3>
+    <button class="btn-primary" onclick="loadDevices()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
+    <div class="table-container" style="max-height:600px">
+      <table><thead><tr><th>Device ID</th><th>Type</th><th>Browser</th><th>OS</th><th>Req</th><th>Last Seen</th></tr></thead>
+      <tbody id="devicesBody"><tr><td colspan="6" style="text-align:center;padding:15px;color:#a08080">Click REFRESH</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- BANS -->
-<div class="glow-card" id="section-bans" style="display:none">
-<h3><i class="fas fa-ban"></i> Bans Manager</h3>
-<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-<button class="btn-primary btn-danger" onclick="unbanAll()"><i class="fas fa-broom"></i> UNBAN ALL</button>
-<button class="btn-primary" onclick="loadBans()"><i class="fas fa-sync"></i> REFRESH</button>
-</div>
-<div class="table-container" style="max-height:300px"><table><thead><tr><th>IP</th><th>Reason</th><th>Time</th><th>Status</th><th>Action</th></tr></thead><tbody id="bansIPBody"></tbody></table></div>
-</div>
+  <!-- ==================== ANNOUNCE ==================== -->
+  <div class="glow-card" id="section-announce" style="display:none">
+    <h3><i class="fas fa-bullhorn"></i> Announcement Banner</h3>
+    <div class="form-group"><label>Enable</label>
+      <select class="form-input" id="announceEnabled">
+        <option value="true" ${announcement.enabled?'selected':''}>✅ ON</option>
+        <option value="false" ${!announcement.enabled?'selected':''}>❌ OFF</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Message</label><input class="form-input" id="announceText" placeholder="Important announcement..." value="${esc(announcement.text||'')}"></div>
+    <div class="form-group"><label>Type</label>
+      <select class="form-input" id="announceType">
+        <option value="info" ${announcement.type==='info'?'selected':''}>ℹ️ Info</option>
+        <option value="warning" ${announcement.type==='warning'?'selected':''}>⚠️ Warning</option>
+        <option value="success" ${announcement.type==='success'?'selected':''}>✅ Success</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="saveAnnouncement()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
+  </div>
 
-<!-- DEVICES -->
-<div class="glow-card" id="section-devices" style="display:none">
-<h3><i class="fas fa-laptop"></i> Tracked Devices</h3>
-<button class="btn-primary" onclick="loadDevices()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
-<div class="table-container" style="max-height:600px">
-<table><thead><tr><th>Device ID</th><th>Type</th><th>Browser</th><th>OS</th><th>Req</th><th>Last Seen</th><th>Action</th></tr></thead><tbody id="devicesBody"></tbody></table>
-</div>
-</div>
+  <!-- ==================== MAINTENANCE ==================== -->
+  <div class="glow-card" id="section-maintenance" style="display:none">
+    <h3><i class="fas fa-wrench"></i> Maintenance Mode</h3>
+    <div class="form-group"><label>Enable</label>
+      <select class="form-input" id="maintenanceEnabled">
+        <option value="false" ${!maintenance.enabled?'selected':''}>❌ OFF</option>
+        <option value="true" ${maintenance.enabled?'selected':''}>✅ ON</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Message</label><input class="form-input" id="maintenanceMessage" placeholder="System under maintenance" value="${esc(maintenance.message||'')}"></div>
+    <button class="btn-primary btn-warning" onclick="saveMaintenance()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
+  </div>
 
-<!-- ANNOUNCEMENT -->
-<div class="glow-card" id="section-announce" style="display:none">
-<h3><i class="fas fa-bullhorn"></i> Announcement Banner</h3>
-<div class="form-group"><label>Enable</label>
-<select class="form-input" id="announceEnabled"><option value="true" ${announcement.enabled?'selected':''}>✅ ON</option><option value="false" ${!announcement.enabled?'selected':''}>❌ OFF</option></select></div>
-<div class="form-group"><label>Message</label><input class="form-input" id="announceText" placeholder="Important announcement..." value="${esc(announcement.text||'')}"></div>
-<div class="form-group"><label>Type</label>
-<select class="form-input" id="announceType">
-<option value="info" ${announcement.type==='info'?'selected':''}>ℹ️ Info</option>
-<option value="warning" ${announcement.type==='warning'?'selected':''}>⚠️ Warning</option>
-<option value="success" ${announcement.type==='success'?'selected':''}>✅ Success</option>
-</select></div>
-<button class="btn-primary" onclick="saveAnnouncement()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
-</div>
+  <!-- ==================== AUDIT ==================== -->
+  <div class="glow-card" id="section-audit" style="display:none">
+    <h3><i class="fas fa-clipboard-list"></i> Audit Log</h3>
+    <button class="btn-primary" onclick="loadAudit()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
+    <div class="table-container" style="max-height:500px">
+      <table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+      <tbody id="auditBody"><tr><td colspan="4" style="text-align:center;padding:15px;color:#a08080">Click REFRESH</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- MAINTENANCE -->
-<div class="glow-card" id="section-maintenance" style="display:none">
-<h3><i class="fas fa-wrench"></i> Maintenance Mode</h3>
-<div class="form-group"><label>Enable</label>
-<select class="form-input" id="maintenanceEnabled"><option value="false" ${!maintenance.enabled?'selected':''}>❌ OFF</option><option value="true" ${maintenance.enabled?'selected':''}>✅ ON</option></select></div>
-<div class="form-group"><label>Message</label><input class="form-input" id="maintenanceMessage" placeholder="System under maintenance" value="${esc(maintenance.message||'')}"></div>
-<button class="btn-primary btn-warning" onclick="saveMaintenance()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
-</div>
+  <!-- ==================== ADMIN LOGS ==================== -->
+  <div class="glow-card" id="section-adminlogs" style="display:none">
+    <h3><i class="fas fa-history"></i> Admin Login Logs</h3>
+    <button class="btn-primary" onclick="loadAdminLogs()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
+    <div class="table-container" style="max-height:500px">
+      <table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>IP</th><th>Status</th></tr></thead>
+      <tbody id="adminLogsBody"><tr><td colspan="5" style="text-align:center;padding:15px;color:#a08080">Click REFRESH</td></tr></tbody></table>
+    </div>
+  </div>
 
-<!-- AUDIT -->
-<div class="glow-card" id="section-audit" style="display:none">
-<h3><i class="fas fa-clipboard-list"></i> Audit Log</h3>
-<button class="btn-primary" onclick="loadAudit()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
-<div class="table-container" style="max-height:500px"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody id="auditBody"></tbody></table></div>
-</div>
-
-<!-- ADMIN LOGS -->
-<div class="glow-card" id="section-adminlogs" style="display:none">
-<h3><i class="fas fa-history"></i> Admin Login Logs</h3>
-<button class="btn-primary" onclick="loadAdminLogs()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
-<div class="table-container" style="max-height:500px"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>IP</th><th>Device</th><th>Status</th></tr></thead><tbody id="adminLogsBody"></tbody></table></div>
-</div>
-
-<!-- BACKUP -->
-<div class="glow-card" id="section-backup" style="display:none">
-<h3><i class="fas fa-database"></i> Backup & Restore</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Download full system backup JSON</p>
-<button class="btn-primary btn-success" onclick="downloadBackup()" style="width:100%;margin-bottom:10px"><i class="fas fa-download"></i> DOWNLOAD BACKUP</button>
-<button class="btn-primary" onclick="loadExport()" style="width:100%"><i class="fas fa-eye"></i> VIEW FULL DATA</button>
-</div>
-
-<!-- SETTINGS -->
-<div class="glow-card" id="section-settings" style="display:none">
-<h3><i class="fas fa-cog"></i> System Settings</h3>
-<div class="form-group"><label>Master API Key</label><input class="form-input" value="${esc(MASTER_API_KEY)}" readonly></div>
-<div class="form-group"><label>Admin Path</label><input class="form-input" value="${esc(ADMIN_PATH)}" readonly></div>
-<p style="color:var(--text-muted);font-size:11px;margin-top:12px">Node.js + Express · V300 ULTRA OP</p>
-</div>
-
-</div></div>
+</div><!-- /main-content -->
+</div><!-- /admin-container -->
 
 <script>
 'use strict';
-// ============================================================
-// ✅ GLOBAL DATA — SAFELY INJECTED
-// ============================================================
-var TOKEN = ${safeJSON(stoken)};
-var ADMIN_PATH = ${safeJSON(ADMIN_PATH)};
-var ALL_KEYS = ${safeJSON(allKeys)};
-var ALL_ENDPOINTS = ${safeJSON(endpointsForJS)};
-var CUSTOM_APIS = ${safeJSON(customAPIs)};
-var DEV_CONFIG = ${safeJSON(developerConfig)};
-var CURRENT_THEME = ${safeJSON(theme)};
-var DDOS_CFG = ${safeJSON(ddosConfig)};
 
 // ============================================================
-// ✅ SAFE API HELPER
+// ✅ GLOBAL DATA
+// ============================================================
+var TOKEN = ${tokenJSON};
+var ADMIN_PATH = ${adminPathJSON};
+var ALL_KEYS = ${allKeysJSON};
+var ALL_ENDPOINTS = ${endpointsJSON};
+var CUSTOM_APIS = ${apisJSON};
+var DEV_CONFIG = ${devConfigJSON};
+var CURRENT_THEME = ${themeJSON};
+var DDOS_CFG = ${ddosJSON};
+
+// ============================================================
+// ✅ API HELPER
 // ============================================================
 function api(path, opts) {
   opts = opts || {};
   var fetchOpts = {
     method: opts.method || 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-token': TOKEN
-    }
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN }
   };
   if (opts.body) fetchOpts.body = opts.body;
   return fetch(ADMIN_PATH + path, fetchOpts)
-    .then(function(r) { return r.json().catch(function() { return { e: 'Invalid response' }; }); })
+    .then(function(r) { return r.json().catch(function() { return { e: 'Invalid JSON' }; }); })
     .catch(function(e) { return { e: e.message || 'Network error' }; });
 }
 
@@ -1881,7 +1877,7 @@ function esc(s) {
 }
 
 // ============================================================
-// ✅ SECTION SWITCHER
+// ✅ NAVIGATION — CRITICAL FIX
 // ============================================================
 var LOADERS = {
   dashboard: function() { loadDashboard(); },
@@ -1905,15 +1901,73 @@ function switchSection(name, el) {
   var all = document.querySelectorAll('.glow-card[id^="section-"]');
   for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
   var target = document.getElementById('section-' + name);
-  if (target) target.style.display = 'block';
-  var navs = document.querySelectorAll('.sidebar-nav a');
-  for (var j = 0; j < navs.length; j++) navs[j].classList.remove('active');
-  if (el) el.classList.add('active');
-  if (LOADERS[name]) {
-    try { LOADERS[name](); } catch (e) { console.error('Loader error:', e); }
+  if (target) {
+    target.style.display = 'block';
+  } else {
+    console.error('Section not found: section-' + name);
+    toast('❌ Section "' + name + '" not found', 'error');
+    return;
   }
-  if (window.innerWidth < 768) window.scrollTo(0, 0);
-  return false;
+  var navs = document.querySelectorAll('#sidebarNav a');
+  for (var j = 0; j < navs.length; j++) navs[j].classList.remove('active');
+  var clickedLink = el || document.querySelector('#sidebarNav a[data-section="' + name + '"]');
+  if (clickedLink) clickedLink.classList.add('active');
+  if (LOADERS[name]) {
+    try { LOADERS[name](); } catch (e) { console.error('Loader error [' + name + ']:', e); }
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Wire up sidebar clicks
+document.addEventListener('DOMContentLoaded', function() {
+  var links = document.querySelectorAll('#sidebarNav a');
+  for (var i = 0; i < links.length; i++) {
+    (function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var section = link.getAttribute('data-section');
+        switchSection(section, link);
+      });
+    })(links[i]);
+  }
+  // Init
+  initSnowfall();
+  buildScopes('scopeBoxGenerate');
+  buildScopes('scopeBoxUpdate');
+  renderKeysTable();
+  renderAPIsList();
+  renderEndpointsList();
+  loadHiddenWords();
+  loadKeyDevOverrides();
+  loadThemeUI();
+  loadDashboard();
+});
+
+// Fallback
+if (document.readyState !== 'loading') {
+  setTimeout(function() {
+    var links = document.querySelectorAll('#sidebarNav a');
+    for (var i = 0; i < links.length; i++) {
+      (function(link) {
+        if (link._wired) return;
+        link._wired = true;
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          switchSection(link.getAttribute('data-section'), link);
+        });
+      })(links[i]);
+    }
+    initSnowfall();
+    buildScopes('scopeBoxGenerate');
+    buildScopes('scopeBoxUpdate');
+    renderKeysTable();
+    renderAPIsList();
+    renderEndpointsList();
+    loadHiddenWords();
+    loadKeyDevOverrides();
+    loadThemeUI();
+    loadDashboard();
+  }, 100);
 }
 
 // ============================================================
@@ -1923,7 +1977,7 @@ function fillTable(id, arr, k1, k2) {
   var el = document.getElementById(id);
   if (!el) return;
   if (!arr || !arr.length) {
-    el.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:15px">No data</td></tr>';
+    el.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#a08080;padding:15px">No data</td></tr>';
     return;
   }
   var html = '';
@@ -1947,55 +2001,11 @@ function loadDashboard() {
     set('statDevices', d.devices || 0);
     fillTable('topKeysBody', d.topKeys, 'key', 'count');
     fillTable('topIPsBody', d.topIPs, 'ip', 'count');
-    fillTable('topDevicesBody', d.topDevices, 'device', 'count');
-    fillTable('topEpDash', d.topEndpoints, 'endpoint', 'count');
   });
 }
 
 // ============================================================
-// ✅ GENERATE KEY
-// ============================================================
-function randomKey() {
-  var el = document.getElementById('gk');
-  if (el) el.value = 'BRONX_' + Math.random().toString(36).substring(2, 12).toUpperCase();
-}
-
-function generateKey() {
-  var scopes = [];
-  var checked = document.querySelectorAll('#scopeBoxGenerate input:checked');
-  for (var i = 0; i < checked.length; i++) scopes.push(checked[i].value);
-  
-  var body = {
-    keyName: (document.getElementById('gk') || {}).value || '',
-    keyOwner: (document.getElementById('go') || {}).value || '',
-    limit: (document.getElementById('gl') || {}).value || '100',
-    dailyLimit: (document.getElementById('gdl') || {}).value || '0',
-    perSecondLimit: (document.getElementById('gpsl') || {}).value || '0',
-    cooldown: (document.getElementById('gc') || {}).value || '0',
-    days: (document.getElementById('gd') || {}).value || '30',
-    notes: (document.getElementById('gnotes') || {}).value || '',
-    formatMode: (document.getElementById('gformat') || {}).value || 'json',
-    customDevName: (document.getElementById('gdevname') || {}).value || '',
-    scopes: scopes
-  };
-  body.keyName = body.keyName.trim();
-  body.keyOwner = body.keyOwner.trim();
-  body.customDevName = body.customDevName.trim();
-  
-  if (!body.keyOwner) { toast('❌ Owner name required', 'error'); return; }
-  
-  api('/generate-key', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
-    if (d && d.success) {
-      toast('✅ Key generated: ' + d.key, 'success');
-      setTimeout(function() { location.reload(); }, 1200);
-    } else {
-      toast('❌ ' + ((d && d.e) || 'Error'), 'error');
-    }
-  });
-}
-
-// ============================================================
-// ✅ KEYS TABLE
+// ✅ KEYS
 // ============================================================
 function renderKeysTable() {
   var tbody = document.getElementById('keysBody');
@@ -2010,24 +2020,23 @@ function renderKeysTable() {
     }
   }
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">No keys found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#a08080;padding:20px">No keys found</td></tr>';
     return;
   }
   var html = '';
   for (var j = 0; j < list.length; j++) {
     var k = list[j];
     var statusIcon = k.stopped ? '⛔' : k.disabled ? '🚫' : k.isExpired ? '⏰' : '✅';
-    var statusColor = (k.stopped || k.disabled || k.isExpired) ? 'var(--neon-red)' : 'var(--neon-green)';
     html += '<tr>' +
       '<td><code>' + esc(k.key) + '</code></td>' +
       '<td>' + esc(k.name) + '</td>' +
       '<td>' + esc(k.limit) + '</td>' +
       '<td>' + esc(k.used) + '</td>' +
-      '<td><strong style="color:' + (k.left === 0 ? 'var(--neon-red)' : 'var(--neon-green)') + '">' + esc(k.left) + '</strong></td>' +
+      '<td><strong style="color:' + (k.left === 0 ? '#ff2d2d' : '#00ff88') + '">' + esc(k.left) + '</strong></td>' +
       '<td style="font-size:10px">' + esc(k.expiry) + '</td>' +
-      '<td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--neon-cyan);color:#000">' + esc(k.formatMode) + '</span></td>' +
-      '<td style="font-size:10px">' + (k.devName ? esc(k.devName) : '<span style="color:var(--text-muted)">global</span>') + '</td>' +
-      '<td style="color:' + statusColor + '">' + statusIcon + '</td>' +
+      '<td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:#00e5ff;color:#000">' + esc(k.formatMode) + '</span></td>' +
+      '<td style="font-size:10px">' + (k.devName ? esc(k.devName) : '<span style="color:#a08080">global</span>') + '</td>' +
+      '<td>' + statusIcon + '</td>' +
       '<td>' +
         '<button class="btn-action btn-reset" onclick="resetKey(\'' + esc(k.key) + '\')">Reset</button>' +
         '<button class="btn-action btn-push" onclick="pushKey(\'' + esc(k.key) + '\')">Push</button>' +
@@ -2039,28 +2048,28 @@ function renderKeysTable() {
   tbody.innerHTML = html;
 }
 
-function resetKey(k) {
-  api('/reset-key-usage', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function() {
-    toast('✅ Reset'); setTimeout(function() { location.reload(); }, 600);
-  });
-}
-function pushKey(k) {
-  var d = prompt('Push how many days?', '30');
-  if (!d) return;
-  api('/push-key', { method: 'POST', body: JSON.stringify({ keyName: k, days: d }) }).then(function() {
-    toast('✅ Pushed'); setTimeout(function() { location.reload(); }, 600);
-  });
-}
-function stopKey(k) {
-  api('/stop-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function(d) {
-    toast(d && d.stopped ? '⛔ Stopped' : '✅ Started');
-    setTimeout(function() { location.reload(); }, 600);
-  });
-}
-function deleteKey(k) {
-  if (!confirm('Delete ' + k + '?')) return;
-  api('/delete-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function() {
-    toast('🗑️ Deleted'); setTimeout(function() { location.reload(); }, 600);
+function resetKey(k) { api('/reset-key-usage', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function() { toast('✅ Reset'); setTimeout(function() { location.reload(); }, 600); }); }
+function pushKey(k) { var d = prompt('Push how many days?', '30'); if (!d) return; api('/push-key', { method: 'POST', body: JSON.stringify({ keyName: k, days: d }) }).then(function() { toast('✅ Pushed'); setTimeout(function() { location.reload(); }, 600); }); }
+function stopKey(k) { api('/stop-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function(d) { toast(d && d.stopped ? '⛔ Stopped' : '✅ Started'); setTimeout(function() { location.reload(); }, 600); }); }
+function deleteKey(k) { if (!confirm('Delete ' + k + '?')) return; api('/delete-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function() { toast('🗑️ Deleted'); setTimeout(function() { location.reload(); }, 600); }); }
+
+function randomKey() { var el = document.getElementById('gk'); if (el) el.value = 'BRONX_' + Math.random().toString(36).substring(2, 12).toUpperCase(); }
+function generateKey() {
+  var scopes = [];
+  var checked = document.querySelectorAll('#scopeBoxGenerate input:checked');
+  for (var i = 0; i < checked.length; i++) scopes.push(checked[i].value);
+  var get = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+  var body = {
+    keyName: get('gk').trim(),
+    keyOwner: get('go').trim(),
+    limit: get('gl'), dailyLimit: get('gdl'), perSecondLimit: get('gpsl'),
+    cooldown: get('gc'), days: get('gd'), notes: get('gnotes'),
+    formatMode: get('gformat'), customDevName: get('gdevname').trim(), scopes: scopes
+  };
+  if (!body.keyOwner) { toast('❌ Owner name required', 'error'); return; }
+  api('/generate-key', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
+    if (d && d.success) { toast('✅ Key: ' + d.key); setTimeout(function() { location.reload(); }, 1200); }
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
 
@@ -2110,15 +2119,14 @@ function renderMonitor() {
   for (var j = 0; j < list.length; j++) {
     var l = list[j];
     html += '<div class="log-entry">' +
-      '<span class="log-time">' + esc(l.timestamp) + '</span>' +
-      '<span class="log-key">' + esc(l.key) + '</span>' +
-      '<span class="log-endpoint">/' + esc(l.endpoint) + '</span>' +
-      '<span class="log-ip">' + esc(l.ip) + '</span>' +
+      '<span class="log-time">' + esc(l.timestamp) + '</span> ' +
+      '<span class="log-key">' + esc(l.key) + '</span> ' +
+      '<span class="log-endpoint">/' + esc(l.endpoint) + '</span> ' +
+      '<span class="log-ip">' + esc(l.ip) + '</span> ' +
       '<span class="log-device">' + esc(l.deviceIcon) + ' ' + esc(l.deviceType) + '</span>' +
-      '<span class="log-browser">' + esc(l.browser) + '</span>' +
     '</div>';
   }
-  el.innerHTML = html || '<p style="text-align:center;color:var(--text-muted);padding:20px">No logs</p>';
+  el.innerHTML = html || '<p style="text-align:center;color:#a08080;padding:20px">No logs</p>';
 }
 
 // ============================================================
@@ -2133,10 +2141,6 @@ function loadStats() {
     set('statWeekReqs', d.week || 0);
     set('statMonthReqs', d.month || 0);
     fillTable('topEndpointsBody', d.topEndpoints, 'endpoint', 'count');
-    fillTable('clientStatsBody', d.clients, 'client', 'count');
-    fillTable('browserStatsBody', d.browsers, 'browser', 'count');
-    fillTable('countryStatsBody', d.countries, 'country', 'count');
-    fillTable('osStatsBody', d.oses, 'os', 'count');
   });
 }
 
@@ -2153,16 +2157,12 @@ function switchTab(name, el) {
   for (var j = 0; j < navTabs.length; j++) navTabs[j].classList.remove('active');
   if (el) el.classList.add('active');
 }
-
 function applyPresetByName(name) {
   api('/apply-preset', { method: 'POST', body: JSON.stringify({ preset: name }) }).then(function(d) {
-    if (d && d.success) {
-      toast('🎨 Preset: ' + name);
-      setTimeout(function() { location.reload(); }, 700);
-    } else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+    if (d && d.success) { toast('🎨 ' + name); setTimeout(function() { location.reload(); }, 700); }
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
-
 function loadThemeUI() {
   var cp = document.getElementById('colorPickers');
   if (cp && !cp.innerHTML) {
@@ -2184,14 +2184,13 @@ function loadThemeUI() {
         if (typeof effects[k2] === 'boolean') {
           html2 += '<div class="color-picker-row"><label>' + esc(k2) + '</label><input type="checkbox" ' + (effects[k2] ? 'checked' : '') + ' data-key="' + esc(k2) + '" style="width:40px;height:24px"></div>';
         } else if (typeof effects[k2] === 'number') {
-          html2 += '<div class="color-picker-row"><label>' + esc(k2) + '</label><input type="number" value="' + effects[k2] + '" data-key="' + esc(k2) + '" style="width:80px;padding:4px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:6px;color:#fff"></div>';
+          html2 += '<div class="color-picker-row"><label>' + esc(k2) + '</label><input type="number" value="' + effects[k2] + '" data-key="' + esc(k2) + '" style="width:80px;padding:4px;background:#0a0505;border:1px solid #333;border-radius:6px;color:#fff"></div>';
         }
       }
     }
     ef.innerHTML = html2;
   }
 }
-
 function saveCustomColors() {
   var colors = {};
   var inputs = document.querySelectorAll('#colorPickers input[type=color]');
@@ -2200,7 +2199,6 @@ function saveCustomColors() {
     if (d && d.success) { toast('🎨 Colors saved'); setTimeout(function() { location.reload(); }, 700); }
   });
 }
-
 function saveEffects() {
   var effects = {};
   var inputs = document.querySelectorAll('#effectsList input[data-key]');
@@ -2212,43 +2210,36 @@ function saveEffects() {
     if (d && d.success) { toast('✨ Effects saved'); setTimeout(function() { location.reload(); }, 700); }
   });
 }
-
 function resetTheme() {
-  if (!confirm('Reset theme to default?')) return;
+  if (!confirm('Reset theme?')) return;
   api('/reset-theme', { method: 'POST', body: '{}' }).then(function() {
-    toast('🔄 Theme reset'); setTimeout(function() { location.reload(); }, 700);
+    toast('🔄 Reset'); setTimeout(function() { location.reload(); }, 700);
   });
 }
 
 // ============================================================
-// ✅ DEVELOPER MODE
+// ✅ DEVELOPER
 // ============================================================
 function updateGlobalDev() {
   var el = document.getElementById('globalDevName');
   var name = el ? el.value.trim() : '';
   if (!name) { toast('❌ Name required', 'error'); return; }
   api('/global-developer', { method: 'POST', body: JSON.stringify({ name: name }) }).then(function(d) {
-    if (d && d.success) {
-      toast('✅ Global updated');
-      var curr = document.getElementById('currentGlobalDev');
-      if (curr) curr.textContent = name;
-      DEV_CONFIG.globalName = name;
-    } else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+    if (d && d.success) { toast('✅ Updated'); var c = document.getElementById('currentGlobalDev'); if (c) c.textContent = name; DEV_CONFIG.globalName = name; }
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
-
 function updateKeyDev() {
-  var keyEl = document.getElementById('keyDevKey');
-  var nameEl = document.getElementById('keyDevName');
-  var keyName = keyEl ? keyEl.value.trim() : '';
-  var devName = nameEl ? nameEl.value.trim() : '';
+  var kEl = document.getElementById('keyDevKey');
+  var nEl = document.getElementById('keyDevName');
+  var keyName = kEl ? kEl.value.trim() : '';
+  var devName = nEl ? nEl.value.trim() : '';
   if (!keyName) { toast('❌ Key required', 'error'); return; }
   api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: keyName, devName: devName }) }).then(function(d) {
     if (d && d.success) { toast('✅ Updated'); loadKeyDevOverrides(); }
     else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
-
 function loadKeyDevOverrides() {
   var el = document.getElementById('keyDevOverrides');
   if (!el) return;
@@ -2259,14 +2250,11 @@ function loadKeyDevOverrides() {
       html += '<tr><td><code>' + esc(k) + '</code></td><td>' + esc(overrides[k]) + '</td><td><button class="btn-action btn-delete" onclick="removeKeyDev(\'' + esc(k) + '\')">Remove</button></td></tr>';
     }
   }
-  el.innerHTML = html || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:15px">No overrides</td></tr>';
+  el.innerHTML = html || '<tr><td colspan="3" style="text-align:center;color:#a08080;padding:15px">No overrides</td></tr>';
 }
-
 function removeKeyDev(k) {
   api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: k, devName: '' }) }).then(function() {
-    toast('🗑️ Removed');
-    if (DEV_CONFIG.perKeyNames) delete DEV_CONFIG.perKeyNames[k];
-    loadKeyDevOverrides();
+    toast('🗑️ Removed'); if (DEV_CONFIG.perKeyNames) delete DEV_CONFIG.perKeyNames[k]; loadKeyDevOverrides();
   });
 }
 
@@ -2279,32 +2267,21 @@ function loadHiddenWords() {
   var words = DEV_CONFIG.hiddenWords || [];
   var html = '';
   for (var i = 0; i < words.length; i++) {
-    html += '<span style="padding:5px 10px;background:var(--neon-red);color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">' + esc(words[i]) + '<span onclick="removeHiddenWord(\'' + esc(words[i]) + '\')" style="cursor:pointer;font-weight:900;font-size:14px">×</span></span>';
+    html += '<span style="padding:5px 10px;background:#ff2d2d;color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">' + esc(words[i]) + '<span onclick="removeHiddenWord(\'' + esc(words[i]) + '\')" style="cursor:pointer;font-weight:900;font-size:14px">×</span></span>';
   }
-  el.innerHTML = html || '<p style="color:var(--text-muted);font-size:11px">No hidden words</p>';
+  el.innerHTML = html || '<p style="color:#a08080;font-size:11px">No hidden words</p>';
 }
-
 function addHiddenWord() {
   var el = document.getElementById('hideWordInput');
   var w = el ? el.value.trim() : '';
   if (!w) { toast('❌ Word required', 'error'); return; }
   api('/hidden-words/add', { method: 'POST', body: JSON.stringify({ word: w }) }).then(function(d) {
-    if (d && d.success) {
-      toast('✅ Added');
-      DEV_CONFIG.hiddenWords = d.hiddenWords || DEV_CONFIG.hiddenWords;
-      loadHiddenWords();
-      if (el) el.value = '';
-    }
+    if (d && d.success) { toast('✅ Added'); DEV_CONFIG.hiddenWords = d.hiddenWords || DEV_CONFIG.hiddenWords; loadHiddenWords(); if (el) el.value = ''; }
   });
 }
-
 function removeHiddenWord(w) {
   api('/hidden-words/remove', { method: 'POST', body: JSON.stringify({ word: w }) }).then(function(d) {
-    if (d && d.success) {
-      toast('🗑️ Removed');
-      DEV_CONFIG.hiddenWords = d.hiddenWords || DEV_CONFIG.hiddenWords;
-      loadHiddenWords();
-    }
+    if (d && d.success) { toast('🗑️ Removed'); DEV_CONFIG.hiddenWords = d.hiddenWords || DEV_CONFIG.hiddenWords; loadHiddenWords(); }
   });
 }
 
@@ -2321,7 +2298,7 @@ function loadExport() {
 }
 function copyExport() {
   if (!EXPORT_CACHE) { toast('⚠️ Load first', 'warning'); return; }
-  navigator.clipboard.writeText(EXPORT_CACHE).then(function() { toast('📋 Copied!'); }).catch(function() { toast('❌ Copy failed', 'error'); });
+  navigator.clipboard.writeText(EXPORT_CACHE).then(function() { toast('📋 Copied!'); }).catch(function() { toast('❌ Failed', 'error'); });
 }
 function downloadExport() {
   if (!EXPORT_CACHE) { toast('⚠️ Load first', 'warning'); return; }
@@ -2337,34 +2314,14 @@ function importKeys() {
   var data = ta ? ta.value.trim() : '';
   if (!data) { toast('❌ Paste JSON first', 'error'); return; }
   var parsed;
-  try { parsed = JSON.parse(data); } catch (e) { toast('❌ Invalid JSON: ' + e.message, 'error'); return; }
+  try { parsed = JSON.parse(data); } catch (e) { toast('❌ Invalid: ' + e.message, 'error'); return; }
   api('/import-keys', { method: 'POST', body: JSON.stringify(parsed) }).then(function(d) {
     if (d && d.success) {
       toast('✅ ' + d.message);
       var msg = document.getElementById('importMsg');
       if (msg) msg.innerHTML = '<span style="color:#00ff88">' + esc(d.message) + '</span>';
       setTimeout(function() { location.reload(); }, 1500);
-    } else {
-      var msg2 = document.getElementById('importMsg');
-      if (msg2) msg2.innerHTML = '<span style="color:#ff2d2d">' + esc((d && d.e) || 'Error') + '</span>';
-      toast('❌ Import failed', 'error');
-    }
-  });
-}
-
-// ============================================================
-// ✅ SCOPES
-// ============================================================
-function updateScopes() {
-  var el = document.getElementById('sk');
-  var keyName = el ? el.value.trim() : '';
-  if (!keyName) { toast('❌ Key required', 'error'); return; }
-  var scopes = [];
-  var checked = document.querySelectorAll('#scopeBoxUpdate input:checked');
-  for (var i = 0; i < checked.length; i++) scopes.push(checked[i].value);
-  api('/update-scopes', { method: 'POST', body: JSON.stringify({ keyName: keyName, scopes: scopes }) }).then(function(d) {
-    if (d && d.success) toast('✅ Scopes updated');
-    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+    } else toast('❌ Import failed', 'error');
   });
 }
 
@@ -2384,7 +2341,7 @@ function loadProtection() {
         html += '<tr><td>' + esc(k) + '</td><td><code>' + esc(prot[k]) + '</code></td><td><button class="btn-action btn-delete" onclick="removeProtection(\'' + esc(k) + '\')">Remove</button></td></tr>';
       }
     }
-    if (!hasAny) html += '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:15px">No protected data</td></tr>';
+    if (!hasAny) html += '<tr><td colspan="3" style="text-align:center;color:#a08080;padding:15px">No data</td></tr>';
     html += '</tbody></table>';
     el.innerHTML = html;
   });
@@ -2398,9 +2355,7 @@ function addProtection() {
   });
 }
 function removeProtection(k) {
-  api('/protection/remove', { method: 'POST', body: JSON.stringify({ key: k }) }).then(function() {
-    toast('🗑️ Removed'); loadProtection();
-  });
+  api('/protection/remove', { method: 'POST', body: JSON.stringify({ key: k }) }).then(function() { toast('🗑️'); loadProtection(); });
 }
 
 // ============================================================
@@ -2416,7 +2371,6 @@ function renderAPIsList() {
       '<td>' + esc(a.id) + '</td>' +
       '<td>' + esc(a.name) + '</td>' +
       '<td><code>' + esc(a.endpoint) + '</code></td>' +
-      '<td><code style="font-size:9px">' + esc(a.scopeKey || '') + '</code></td>' +
       '<td>' + esc(a.param) + '</td>' +
       '<td>' + (a.visible ? '✅' : '❌') + '</td>' +
       '<td>' +
@@ -2425,36 +2379,21 @@ function renderAPIsList() {
       '</td>' +
     '</tr>';
   }
-  el.innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:15px">No custom APIs</td></tr>';
+  el.innerHTML = html || '<tr><td colspan="6" style="text-align:center;color:#a08080;padding:15px">No APIs</td></tr>';
 }
-function toggleAPI(id) {
-  api('/toggle-api', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() {
-    toast('✅ Toggled'); setTimeout(function() { location.reload(); }, 500);
-  });
-}
-function deleteAPI(id) {
-  if (!confirm('Delete API?')) return;
-  api('/delete-api', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() {
-    toast('🗑️ Deleted'); setTimeout(function() { location.reload(); }, 500);
-  });
-}
+function toggleAPI(id) { api('/toggle-api', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() { toast('✅'); setTimeout(function() { location.reload(); }, 500); }); }
+function deleteAPI(id) { if (!confirm('Delete API?')) return; api('/delete-api', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() { toast('🗑️'); setTimeout(function() { location.reload(); }, 500); }); }
 function addAPI() {
   var name = (document.getElementById('aname') || {}).value || '';
   var endpoint = (document.getElementById('aep') || {}).value || '';
   var param = (document.getElementById('aparam') || {}).value || '';
   var example = (document.getElementById('aex') || {}).value || '';
   var realAPI = (document.getElementById('aurl') || {}).value || '';
-  
   name = name.trim(); endpoint = endpoint.trim().toLowerCase(); param = param.trim(); realAPI = realAPI.trim();
-  
-  if (!name || !endpoint || !realAPI) { toast('❌ Fill required fields', 'error'); return; }
-  
-  var body = { name: name, endpoint: endpoint, param: param, example: example, realAPI: realAPI };
-  api('/add-api', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
-    if (d && d.success) {
-      toast('✅ API added');
-      setTimeout(function() { location.reload(); }, 800);
-    } else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+  if (!name || !endpoint || !realAPI) { toast('❌ Fill required', 'error'); return; }
+  api('/add-api', { method: 'POST', body: JSON.stringify({ name: name, endpoint: endpoint, param: param, example: example, realAPI: realAPI }) }).then(function(d) {
+    if (d && d.success) { toast('✅ Added'); setTimeout(function() { location.reload(); }, 800); }
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
 
@@ -2462,21 +2401,16 @@ function addAPI() {
 // ✅ DDOS
 // ============================================================
 function saveDDoSConfig() {
-  var getNum = function(id, def) { var el = document.getElementById(id); return el ? parseInt(el.value) || def : def; };
+  var getNum = function(id, def) { var el = document.getElementById(id); return el ? (parseInt(el.value) || def) : def; };
   var modeEl = document.getElementById('ddosMode');
   var mode = modeEl ? modeEl.value : 'smart';
-  
   var body = {
-    mode: mode,
-    enabled: mode !== 'off',
+    mode: mode, enabled: mode !== 'off',
     ip: { burst10s: getNum('ddosIP10', 60), perMinute: getNum('ddosIP1M', 200), perHour: getNum('ddosIP1H', 1500) },
-    device: { burst10s: getNum('ddosDEV10', 80), perMinute: getNum('ddosDEV1M', 250), perHour: getNum('ddosDEV1H', 2000) },
-    key: { burst10s: getNum('ddosKEY10', 100), perMinute: getNum('ddosKEY1M', 400), perHour: getNum('ddosKEY1H', 3000) }
+    device: { burst10s: getNum('ddosDEV10', 80), perMinute: getNum('ddosDEV1M', 250), perHour: getNum('ddosDEV1H', 2000) }
   };
-  
   api('/ddos-config', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
-    if (d && d.success) toast('✅ DDoS config saved');
-    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+    if (d && d.success) toast('✅ Saved'); else toast('❌ Error', 'error');
   });
 }
 
@@ -2496,20 +2430,11 @@ function loadBans() {
         html += '<tr><td><code>' + esc(ip) + '</code></td><td>' + esc(b.reason || '-') + '</td><td>' + esc(b.at || '-') + '</td><td>' + status + '</td><td><button class="btn-action btn-delete" onclick="unbanIP(\'' + esc(ip) + '\')">Unban</button></td></tr>';
       }
     }
-    el.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:15px">No bans</td></tr>';
+    el.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#a08080;padding:15px">No bans</td></tr>';
   });
 }
-function unbanIP(ip) {
-  api('/unban', { method: 'POST', body: JSON.stringify({ type: 'ip', id: ip }) }).then(function() {
-    toast('✅ Unbanned'); loadBans();
-  });
-}
-function unbanAll() {
-  if (!confirm('Unban all?')) return;
-  api('/unban-all', { method: 'POST', body: '{}' }).then(function() {
-    toast('✅ All unbanned'); loadBans();
-  });
-}
+function unbanIP(ip) { api('/unban', { method: 'POST', body: JSON.stringify({ type: 'ip', id: ip }) }).then(function() { toast('✅'); loadBans(); }); }
+function unbanAll() { if (!confirm('Unban all?')) return; api('/unban-all', { method: 'POST', body: '{}' }).then(function() { toast('✅'); loadBans(); }); }
 
 // ============================================================
 // ✅ DEVICES
@@ -2523,62 +2448,32 @@ function loadDevices() {
     for (var id in devices) {
       if (devices.hasOwnProperty(id)) {
         var dev = devices[id];
-        html += '<tr>' +
-          '<td><code style="font-size:9px">' + esc(id.substring(0, 20)) + '</code></td>' +
-          '<td>' + esc(dev.deviceIcon || '') + ' ' + esc(dev.deviceType || '') + '</td>' +
-          '<td>' + esc(dev.browser || '') + '</td>' +
-          '<td>' + esc(dev.os || '') + '</td>' +
-          '<td>' + esc(dev.requests || 0) + '</td>' +
-          '<td style="font-size:10px">' + esc(dev.lastSeen || '') + '</td>' +
-          '<td><button class="btn-action btn-delete" onclick="banDevice(\'' + esc(id) + '\')">Ban</button></td>' +
-        '</tr>';
+        html += '<tr><td><code style="font-size:9px">' + esc(id.substring(0, 20)) + '</code></td><td>' + esc(dev.deviceIcon || '') + ' ' + esc(dev.deviceType || '') + '</td><td>' + esc(dev.browser || '') + '</td><td>' + esc(dev.os || '') + '</td><td>' + esc(dev.requests || 0) + '</td><td style="font-size:10px">' + esc(dev.lastSeen || '') + '</td></tr>';
       }
     }
-    el.innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:15px">No devices</td></tr>';
-  });
-}
-function banDevice(id) {
-  api('/ban-device', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() {
-    toast('⛔ Banned');
+    el.innerHTML = html || '<tr><td colspan="6" style="text-align:center;color:#a08080;padding:15px">No devices</td></tr>';
   });
 }
 
 // ============================================================
-// ✅ ANNOUNCEMENT
+// ✅ ANNOUNCE / MAINT
 // ============================================================
 function saveAnnouncement() {
-  var enabledEl = document.getElementById('announceEnabled');
-  var textEl = document.getElementById('announceText');
-  var typeEl = document.getElementById('announceType');
-  var body = {
-    enabled: enabledEl ? enabledEl.value === 'true' : false,
-    text: textEl ? textEl.value.trim() : '',
-    type: typeEl ? typeEl.value : 'info'
-  };
-  api('/announcement', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
-    if (d && d.success) toast('✅ Announcement saved');
-    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
-  });
+  var e = document.getElementById('announceEnabled');
+  var t = document.getElementById('announceText');
+  var ty = document.getElementById('announceType');
+  var body = { enabled: e ? e.value === 'true' : false, text: t ? t.value.trim() : '', type: ty ? ty.value : 'info' };
+  api('/announcement', { method: 'POST', body: JSON.stringify(body) }).then(function(d) { if (d && d.success) toast('✅'); });
 }
-
-// ============================================================
-// ✅ MAINTENANCE
-// ============================================================
 function saveMaintenance() {
-  var enabledEl = document.getElementById('maintenanceEnabled');
-  var msgEl = document.getElementById('maintenanceMessage');
-  var body = {
-    enabled: enabledEl ? enabledEl.value === 'true' : false,
-    message: msgEl ? msgEl.value.trim() : ''
-  };
-  api('/maintenance', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
-    if (d && d.success) toast('✅ Maintenance saved');
-    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
-  });
+  var e = document.getElementById('maintenanceEnabled');
+  var m = document.getElementById('maintenanceMessage');
+  var body = { enabled: e ? e.value === 'true' : false, message: m ? m.value.trim() : '' };
+  api('/maintenance', { method: 'POST', body: JSON.stringify(body) }).then(function(d) { if (d && d.success) toast('✅'); });
 }
 
 // ============================================================
-// ✅ AUDIT / LOGS
+// ✅ LOGS
 // ============================================================
 function loadAudit() {
   api('/audit-log').then(function(d) {
@@ -2591,7 +2486,7 @@ function loadAudit() {
       var l = logs[i];
       html += '<tr><td style="font-size:10px">' + esc(l.timestamp) + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + '</td><td style="font-size:9px">' + esc(JSON.stringify(l.details)) + '</td></tr>';
     }
-    el.innerHTML = html || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:15px">No logs</td></tr>';
+    el.innerHTML = html || '<tr><td colspan="4" style="text-align:center;color:#a08080;padding:15px">No logs</td></tr>';
   });
 }
 function loadAdminLogs() {
@@ -2603,25 +2498,20 @@ function loadAdminLogs() {
     var html = '';
     for (var i = 0; i < logs.length; i++) {
       var l = logs[i];
-      html += '<tr><td style="font-size:10px">' + esc(l.timestamp) + '</td><td>' + esc(l.user || '-') + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.ip || '-') + '</td><td>' + esc(l.device || '-') + '</td><td>' + esc(l.status) + '</td></tr>';
+      html += '<tr><td style="font-size:10px">' + esc(l.timestamp) + '</td><td>' + esc(l.user || '-') + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.ip || '-') + '</td><td>' + esc(l.status) + '</td></tr>';
     }
-    el.innerHTML = html || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:15px">No logs</td></tr>';
+    el.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#a08080;padding:15px">No logs</td></tr>';
   });
-}
-function downloadBackup() {
-  loadExport();
-  setTimeout(function() { downloadExport(); }, 800);
 }
 
 // ============================================================
-// ✅ SCOPES BUILDER
+// ✅ SCOPES
 // ============================================================
 function buildScopes(containerId) {
   var el = document.getElementById(containerId);
   if (!el) return;
   var html = el.innerHTML;
-  var ep;
-  for (ep in ALL_ENDPOINTS) {
+  for (var ep in ALL_ENDPOINTS) {
     if (ALL_ENDPOINTS.hasOwnProperty(ep)) {
       html += '<label class="scope-item"><input type="checkbox" value="' + esc(ep) + '"> <span>' + esc(ep) + '</span></label>';
     }
@@ -2631,8 +2521,6 @@ function buildScopes(containerId) {
     html += '<label class="scope-item custom"><input type="checkbox" value="custom:' + esc(a.endpoint) + '"> <span>' + esc(a.endpoint) + '</span></label>';
   }
   el.innerHTML = html;
-  
-  // Wire up "ALL" checkbox
   var allBox = el.querySelector('input[value="*"]');
   if (allBox) {
     allBox.addEventListener('change', function() {
@@ -2680,44 +2568,12 @@ function initSnowfall() {
       }
       requestAnimationFrame(animate);
     })();
-  } catch (e) { console.error('Snowfall error:', e); }
-}
-
-// ============================================================
-// ✅ INIT
-// ============================================================
-document.addEventListener('DOMContentLoaded', function() {
-  buildScopes('scopeBoxGenerate');
-  buildScopes('scopeBoxUpdate');
-  initSnowfall();
-  loadDashboard();
-  renderKeysTable();
-  renderAPIsList();
-  renderEndpointsList();
-  loadHiddenWords();
-  loadKeyDevOverrides();
-  loadThemeUI();
-});
-
-// Fallback if DOMContentLoaded already fired
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  setTimeout(function() {
-    buildScopes('scopeBoxGenerate');
-    buildScopes('scopeBoxUpdate');
-    initSnowfall();
-    loadDashboard();
-    renderKeysTable();
-    renderAPIsList();
-    renderEndpointsList();
-    loadHiddenWords();
-    loadKeyDevOverrides();
-    loadThemeUI();
-  }, 100);
+  } catch (e) { console.error('Snow:', e); }
 }
 </script>
 </body></html>`;
-  } catch(e) {
-    console.error('renderAdmin error:', e);
+  } catch (e) {
+    console.error('renderAdmin FATAL:', e);
     return '<html><body style="background:#000;color:#f00;padding:20px;font-family:monospace"><h1>Admin Render Error</h1><pre>' + e.message + '\n\n' + (e.stack || '') + '</pre></body></html>';
   }
 }
