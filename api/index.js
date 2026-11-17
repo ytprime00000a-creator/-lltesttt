@@ -1751,7 +1751,12 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 </div>
 </div>
 
-<!-- ANNOUNCEMENT (continue) -->
+<!-- ANNOUNCEMENT -->
+<div class="glow-card" id="section-announce" style="display:none">
+<h3><i class="fas fa-bullhorn"></i> Announcement Banner</h3>
+<div class="form-group"><label>Enable</label>
+<select class="form-input" id="announceEnabled"><option value="true">✅ ON</option><option value="false">❌ OFF</option></select></div>
+<div class="form-group"><label>Message</label><input class="form-input" id="announceText" placeholder="Important announcement..."></div>
 <div class="form-group"><label>Type</label>
 <select class="form-input" id="announceType">
 <option value="info">ℹ️ Info</option>
@@ -1883,7 +1888,7 @@ function fillTable(id, arr, k1, k2) {
   const el = document.getElementById(id);
   if (!el) return;
   if (!arr || !arr.length) { el.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">No data</td></tr>'; return; }
-  el.innerHTML = arr.map(x => `<tr><td><code>${esc(x[k1])}</code></td><td><strong>${x[k2]}</strong></td></tr>`).join('');
+  el.innerHTML = arr.map(x => \`<tr><td><code>\${esc(x[k1])}</code></td><td><strong>\${x[k2]}</strong></td></tr>\`).join('');
 }
 
 // ============================================================
@@ -1921,24 +1926,24 @@ function renderKeysTable() {
   if (!tbody) return;
   const filter = (document.getElementById('keysFilter')?.value || '').toLowerCase();
   const list = ALL_KEYS.filter(k => !filter || k.key.toLowerCase().includes(filter) || k.name.toLowerCase().includes(filter));
-  tbody.innerHTML = list.map(k => `
+  tbody.innerHTML = list.map(k => \`
     <tr>
-      <td><code>${esc(k.key)}</code></td>
-      <td>${esc(k.name)}</td>
-      <td>${k.limit}</td>
-      <td>${k.used}</td>
-      <td><strong style="color:${k.left === 0 ? 'var(--neon-red)' : 'var(--neon-green)'}">${k.left}</strong></td>
-      <td>${esc(k.expiry)}</td>
-      <td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--neon-cyan);color:#000">${esc(k.formatMode)}</span></td>
-      <td>${k.devName ? esc(k.devName) : '<span style="color:var(--text-muted)">global</span>'}</td>
-      <td>${k.stopped ? '⛔' : k.disabled ? '🚫' : '✅'}</td>
+      <td><code>\${esc(k.key)}</code></td>
+      <td>\${esc(k.name)}</td>
+      <td>\${k.limit}</td>
+      <td>\${k.used}</td>
+      <td><strong style="color:\${k.left === 0 ? 'var(--neon-red)' : 'var(--neon-green)'}">\${k.left}</strong></td>
+      <td>\${esc(k.expiry)}</td>
+      <td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--neon-cyan);color:#000">\${esc(k.formatMode)}</span></td>
+      <td>\${k.devName ? esc(k.devName) : '<span style="color:var(--text-muted)">global</span>'}</td>
+      <td>\${k.stopped ? '⛔' : k.disabled ? '🚫' : '✅'}</td>
       <td>
-        <button class="btn-action btn-reset" onclick="resetKey('${esc(k.key)}')">Reset</button>
-        <button class="btn-action btn-push" onclick="pushKey('${esc(k.key)}')">Push</button>
-        <button class="btn-action btn-stop" onclick="stopKey('${esc(k.key)}')">${k.stopped ? 'Start' : 'Stop'}</button>
-        <button class="btn-action btn-delete" onclick="deleteKey('${esc(k.key)}')">Del</button>
+        <button class="btn-action btn-reset" onclick="resetKey('\${esc(k.key)}')">Reset</button>
+        <button class="btn-action btn-push" onclick="pushKey('\${esc(k.key)}')">Push</button>
+        <button class="btn-action btn-stop" onclick="stopKey('\${esc(k.key)}')">\${k.stopped ? 'Start' : 'Stop'}</button>
+        <button class="btn-action btn-delete" onclick="deleteKey('\${esc(k.key)}')">Del</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">No keys</td></tr>';
+    </tr>\`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">No keys</td></tr>';
 }
 function filterKeys() { renderKeysTable(); }
 function resetKey(k) { api('/reset-key-usage', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(() => { toast('✅ Reset'); setTimeout(() => location.reload(), 600); }); }
@@ -1954,10 +1959,10 @@ function renderEndpointsList() {
   if (!el) return;
   let html = '';
   Object.entries(ALL_ENDPOINTS).forEach(([n, e]) => {
-    html += `<div class="endpoint-card"><div class="ep-icon">${e.i}</div><div class="ep-name">/${n}</div><div class="ep-desc">${e.d}</div><div class="ep-url">/api/key-bronx/${n}?key=KEY&${e.p}=${e.e}</div></div>`;
+    html += \`<div class="endpoint-card"><div class="ep-icon">\${e.i}</div><div class="ep-name">/\${n}</div><div class="ep-desc">\${e.d}</div><div class="ep-url">/api/key-bronx/\${n}?key=KEY&\${e.p}=\${e.e}</div></div>\`;
   });
   CUSTOM_APIS.forEach(a => {
-    html += `<div class="endpoint-card"><div class="ep-icon">🔧</div><div class="ep-name">/${a.endpoint}</div><div class="ep-desc">Custom</div><div class="ep-url">/api/custom/${a.endpoint}?key=KEY&${a.param}=${a.example}</div></div>`;
+    html += \`<div class="endpoint-card"><div class="ep-icon">🔧</div><div class="ep-name">/\${a.endpoint}</div><div class="ep-desc">Custom</div><div class="ep-url">/api/custom/\${a.endpoint}?key=KEY&\${a.param}=\${a.example}</div></div>\`;
   });
   el.innerHTML = html;
 }
@@ -1977,15 +1982,15 @@ function renderMonitor() {
   if (!el) return;
   const filter = (document.getElementById('monitorFilter')?.value || '').toLowerCase();
   const list = MONITOR_LOGS.filter(l => !filter || JSON.stringify(l).toLowerCase().includes(filter)).slice(-200).reverse();
-  el.innerHTML = list.map(l => `
+  el.innerHTML = list.map(l => \`
     <div class="log-entry">
-      <span class="log-time">${esc(l.timestamp)}</span>
-      <span class="log-key">${esc(l.key)}</span>
-      <span class="log-endpoint">/${esc(l.endpoint)}</span>
-      <span class="log-ip">${esc(l.ip)}</span>
-      <span class="log-device">${esc(l.deviceIcon)} ${esc(l.deviceType)}</span>
-      <span class="log-browser">${esc(l.browser)}</span>
-    </div>`).join('') || '<p style="text-align:center;color:var(--text-muted);padding:20px">No logs</p>';
+      <span class="log-time">\${esc(l.timestamp)}</span>
+      <span class="log-key">\${esc(l.key)}</span>
+      <span class="log-endpoint">/\${esc(l.endpoint)}</span>
+      <span class="log-ip">\${esc(l.ip)}</span>
+      <span class="log-device">\${esc(l.deviceIcon)} \${esc(l.deviceType)}</span>
+      <span class="log-browser">\${esc(l.browser)}</span>
+    </div>\`).join('') || '<p style="text-align:center;color:var(--text-muted);padding:20px">No logs</p>';
 }
 
 // ============================================================
@@ -2028,21 +2033,21 @@ function loadThemeUI() {
   const cp = document.getElementById('colorPickers');
   if (cp && !cp.innerHTML) {
     const colors = CURRENT_THEME.colors;
-    cp.innerHTML = Object.keys(colors).map(k => `
+    cp.innerHTML = Object.keys(colors).map(k => \`
       <div class="color-picker-row">
-        <label>${k}</label>
-        <input type="color" value="${colors[k]}" id="color-${k}" data-key="${k}">
-      </div>`).join('');
+        <label>\${k}</label>
+        <input type="color" value="\${colors[k]}" id="color-\${k}" data-key="\${k}">
+      </div>\`).join('');
   }
   // Load effects toggles
   const ef = document.getElementById('effectsList');
   if (ef && !ef.innerHTML) {
     const effects = CURRENT_THEME.effects;
-    ef.innerHTML = Object.keys(effects).filter(k => typeof effects[k] === 'boolean').map(k => `
+    ef.innerHTML = Object.keys(effects).filter(k => typeof effects[k] === 'boolean').map(k => \`
       <div class="color-picker-row">
-        <label>${k}</label>
-        <input type="checkbox" ${effects[k] ? 'checked' : ''} id="effect-${k}" data-key="${k}" style="width:40px;height:24px">
-      </div>`).join('');
+        <label>\${k}</label>
+        <input type="checkbox" \${effects[k] ? 'checked' : ''} id="effect-\${k}" data-key="\${k}" style="width:40px;height:24px">
+      </div>\`).join('');
   }
 }
 function saveCustomColors() {
@@ -2082,7 +2087,7 @@ function loadKeyDevOverrides() {
   if (!el) return;
   const overrides = DEVELOPER_CONFIG.perKeyNames || {};
   const entries = Object.entries(overrides);
-  el.innerHTML = entries.map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td>${esc(v)}</td><td><button class="btn-action btn-delete" onclick="removeKeyDev('${esc(k)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No overrides</td></tr>';
+  el.innerHTML = entries.map(([k, v]) => \`<tr><td><code>\${esc(k)}</code></td><td>\${esc(v)}</td><td><button class="btn-action btn-delete" onclick="removeKeyDev('\${esc(k)}')">Remove</button></td></tr>\`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No overrides</td></tr>';
 }
 function removeKeyDev(k) {
   api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: k, devName: '' }) }).then(() => { toast('🗑️ Removed'); loadKeyDevOverrides(); });
@@ -2095,7 +2100,7 @@ function loadHiddenWords() {
   const el = document.getElementById('hiddenWordsList');
   if (!el) return;
   const words = DEVELOPER_CONFIG.hiddenWords || [];
-  el.innerHTML = words.map(w => `<span style="padding:5px 10px;background:var(--neon-red);color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">${esc(w)}<span onclick="removeHiddenWord('${esc(w)}')" style="cursor:pointer;font-weight:900">×</span></span>`).join('') || '<p style="color:var(--text-muted);font-size:11px">No hidden words</p>';
+  el.innerHTML = words.map(w => \`<span style="padding:5px 10px;background:var(--neon-red);color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">\${esc(w)}<span onclick="removeHiddenWord('\${esc(w)}')" style="cursor:pointer;font-weight:900">×</span></span>\`).join('') || '<p style="color:var(--text-muted);font-size:11px">No hidden words</p>';
 }
 function addHiddenWord() {
   const w = document.getElementById('hideWordInput').value.trim();
@@ -2166,7 +2171,7 @@ function loadProtection() {
     if (!el) return;
     const entries = Object.entries(d.protected || {});
     el.innerHTML = '<table><thead><tr><th>Key</th><th>Value</th><th>Action</th></tr></thead><tbody>' +
-      (entries.map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td><td><button class="btn-action btn-delete" onclick="removeProtection('${esc(k)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No protected data</td></tr>') +
+      (entries.map(([k, v]) => \`<tr><td>\${esc(k)}</td><td><code>\${esc(v)}</code></td><td><button class="btn-action btn-delete" onclick="removeProtection('\${esc(k)}')">Remove</button></td></tr>\`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No protected data</td></tr>') +
       '</tbody></table>';
   }).catch(() => {});
 }
@@ -2187,19 +2192,19 @@ function removeProtection(k) {
 function renderAPIsList() {
   const el = document.getElementById('apisBody');
   if (!el) return;
-  el.innerHTML = CUSTOM_APIS.map(a => `
+  el.innerHTML = CUSTOM_APIS.map(a => \`
     <tr>
-      <td>${a.id}</td>
-      <td>${esc(a.name)}</td>
-      <td><code>${esc(a.endpoint)}</code></td>
-      <td><code>${esc(a.scopeKey || '')}</code></td>
-      <td>${esc(a.param)}</td>
-      <td>${a.visible ? '✅' : '❌'}</td>
+      <td>\${a.id}</td>
+      <td>\${esc(a.name)}</td>
+      <td><code>\${esc(a.endpoint)}</code></td>
+      <td><code>\${esc(a.scopeKey || '')}</code></td>
+      <td>\${esc(a.param)}</td>
+      <td>\${a.visible ? '✅' : '❌'}</td>
       <td>
-        <button class="btn-action btn-edit" onclick="toggleAPI(${a.id})">Toggle</button>
-        <button class="btn-action btn-delete" onclick="deleteAPI(${a.id})">Del</button>
+        <button class="btn-action btn-edit" onclick="toggleAPI(\${a.id})">Toggle</button>
+        <button class="btn-action btn-delete" onclick="deleteAPI(\${a.id})">Del</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No custom APIs</td></tr>';
+    </tr>\`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No custom APIs</td></tr>';
 }
 function toggleAPI(id) { api('/toggle-api', { method: 'POST', body: JSON.stringify({ id }) }).then(() => { toast('✅ Toggled'); setTimeout(() => location.reload(), 500); }); }
 function deleteAPI(id) { if (!confirm('Delete API?')) return; api('/delete-api', { method: 'POST', body: JSON.stringify({ id }) }).then(() => { toast('🗑️ Deleted'); setTimeout(() => location.reload(), 500); }); }
@@ -2242,14 +2247,14 @@ function loadBans() {
     const el = document.getElementById('bansIPBody');
     if (!el) return;
     const entries = Object.entries(d.ip || {});
-    el.innerHTML = entries.map(([ip, b]) => `
+    el.innerHTML = entries.map(([ip, b]) => \`
       <tr>
-        <td><code>${esc(ip)}</code></td>
-        <td>${esc(b.reason || '-')}</td>
-        <td>${esc(b.at || '-')}</td>
-        <td>${b.permanent ? '🚫 Permanent' : (Date.now() < b.until ? '⏸️ Temp' : '✅ Expired')}</td>
-        <td><button class="btn-action btn-delete" onclick="unbanIP('${esc(ip)}')">Unban</button></td>
-      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No bans</td></tr>';
+        <td><code>\${esc(ip)}</code></td>
+        <td>\${esc(b.reason || '-')}</td>
+        <td>\${esc(b.at || '-')}</td>
+        <td>\${b.permanent ? '🚫 Permanent' : (Date.now() < b.until ? '⏸️ Temp' : '✅ Expired')}</td>
+        <td><button class="btn-action btn-delete" onclick="unbanIP('\${esc(ip)}')">Unban</button></td>
+      </tr>\`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No bans</td></tr>';
   }).catch(() => {});
 }
 function unbanIP(ip) { api('/unban', { method: 'POST', body: JSON.stringify({ type: 'ip', id: ip }) }).then(() => { toast('✅ Unbanned'); loadBans(); }); }
@@ -2263,16 +2268,16 @@ function loadDevices() {
     const el = document.getElementById('devicesBody');
     if (!el) return;
     const entries = Object.entries(d.devices || {});
-    el.innerHTML = entries.map(([id, dev]) => `
+    el.innerHTML = entries.map(([id, dev]) => \`
       <tr>
-        <td><code>${esc(id)}</code></td>
-        <td>${esc(dev.deviceIcon)} ${esc(dev.deviceType)}</td>
-        <td>${esc(dev.browser)}</td>
-        <td>${esc(dev.os)}</td>
-        <td>${dev.requests}</td>
-        <td>${esc(dev.lastSeen)}</td>
-        <td><button class="btn-action btn-delete" onclick="banDevice('${esc(id)}')">Ban</button></td>
-      </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No devices</td></tr>';
+        <td><code>\${esc(id)}</code></td>
+        <td>\${esc(dev.deviceIcon)} \${esc(dev.deviceType)}</td>
+        <td>\${esc(dev.browser)}</td>
+        <td>\${esc(dev.os)}</td>
+        <td>\${dev.requests}</td>
+        <td>\${esc(dev.lastSeen)}</td>
+        <td><button class="btn-action btn-delete" onclick="banDevice('\${esc(id)}')">Ban</button></td>
+      </tr>\`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No devices</td></tr>';
   }).catch(() => {});
 }
 function banDevice(id) { api('/ban-device', { method: 'POST', body: JSON.stringify({ id }) }).then(() => toast('⛔ Banned')); }
@@ -2300,16 +2305,16 @@ function loadAudit() {
   api('/audit-log').then(d => {
     const el = document.getElementById('auditBody');
     if (!el) return;
-    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => `
-      <tr><td>${esc(l.timestamp)}</td><td>${esc(l.user)}</td><td>${esc(l.action)}</td><td>${esc(JSON.stringify(l.details))}</td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
+    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => \`
+      <tr><td>\${esc(l.timestamp)}</td><td>\${esc(l.user)}</td><td>\${esc(l.action)}</td><td>\${esc(JSON.stringify(l.details))}</td></tr>\`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
   }).catch(() => {});
 }
 function loadAdminLogs() {
   api('/admin-logs').then(d => {
     const el = document.getElementById('adminLogsBody');
     if (!el) return;
-    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => `
-      <tr><td>${esc(l.timestamp)}</td><td>${esc(l.user || '-')}</td><td>${esc(l.action)}</td><td>${esc(l.ip || '-')}</td><td>${esc(l.device || '-')}</td><td>${esc(l.status)}</td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
+    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => \`
+      <tr><td>\${esc(l.timestamp)}</td><td>\${esc(l.user || '-')}</td><td>\${esc(l.action)}</td><td>\${esc(l.ip || '-')}</td><td>\${esc(l.device || '-')}</td><td>\${esc(l.status)}</td></tr>\`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
   }).catch(() => {});
 }
 function downloadBackup() { loadExport(); setTimeout(() => downloadExport(), 800); }
@@ -2325,10 +2330,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!el) return;
     let html = el.innerHTML;
     Object.keys(ALL_ENDPOINTS).forEach(ep => {
-      html += `<label class="scope-item"><input type="checkbox" value="${ep}"> <span>${ep}</span></label>`;
+      html += \`<label class="scope-item"><input type="checkbox" value="\${ep}"> <span>\${ep}</span></label>\`;
     });
     CUSTOM_APIS.forEach(a => {
-      html += `<label class="scope-item custom"><input type="checkbox" value="custom:${a.endpoint}"> <span>${a.endpoint}</span></label>`;
+      html += \`<label class="scope-item custom"><input type="checkbox" value="custom:\${a.endpoint}"> <span>\${a.endpoint}</span></label>\`;
     });
     el.innerHTML = html;
   };
@@ -2349,9 +2354,7 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch(e) { return 'Admin render err: ' + e.message; }
 }
 
-// ============================================================
 // 🚀 START
-// ============================================================
 loadFromDisk();
 initHardcoded();
 if(!customAPIs.length) initCustomAPIs();
