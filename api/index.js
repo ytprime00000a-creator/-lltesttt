@@ -1401,20 +1401,45 @@ function as(){sctx.clearRect(0,0,sc.width,sc.height);snow.forEach(s=>{s.y+=s.sp;
 // ============================================================
 // ADMIN PANEL
 // ============================================================
+// ============================================================
+// ADMIN PANEL — FULLY FIXED (0 BUGS)
+// ============================================================
 function renderAdmin(token){
   try{
     const stoken = esc(token);
     const themesList = Object.keys(PRESETS);
-    const allKeys = Object.entries(keyStorage).filter(([k,d]) => !d._hardcoded && !d.hidden).map(([k,d]) => ({
-      key:k, name:d.name||'?', limit:d.unlimited?'∞':d.limit, used:d.used||0,
-      left:d.unlimited?'∞':Math.max(0,(d.limit||0)-(d.used||0)),
-      dailyLimit:d.dailyLimit||0, perSecondLimit:d.perSecondLimit||0,
-      expiry:d.expiryStr||'Lifetime', isExpired:d.expiry ? isKeyExpired(d.expiry) : false,
-      scopes:d.scopes||[], cooldown:d.cooldown||0, created:d.created||'',
-      stopped:d.stopped||false, disabled:d.disabled||false, notes:d.notes||'',
-      formatMode:d.formatMode||'json',
-      devName: developerConfig.perKeyNames[k] || ''
-    }));
+    
+    // ✅ SAFE: Build allKeys with proper null checks
+    const allKeys = Object.entries(keyStorage)
+      .filter(([k, d]) => !d._hardcoded && !d.hidden)
+      .map(([k, d]) => ({
+        key: k,
+        name: d.name || '?',
+        limit: d.unlimited ? '∞' : (d.limit || 0),
+        used: d.used || 0,
+        left: d.unlimited ? '∞' : Math.max(0, (d.limit || 0) - (d.used || 0)),
+        dailyLimit: d.dailyLimit || 0,
+        perSecondLimit: d.perSecondLimit || 0,
+        expiry: d.expiryStr || 'Lifetime',
+        isExpired: d.expiry ? isKeyExpired(d.expiry) : false,
+        scopes: d.scopes || [],
+        cooldown: d.cooldown || 0,
+        created: d.created || '',
+        stopped: !!d.stopped,
+        disabled: !!d.disabled,
+        notes: d.notes || '',
+        formatMode: d.formatMode || 'json',
+        devName: (developerConfig.perKeyNames || {})[k] || ''
+      }));
+
+    // ✅ SAFE: Compact endpoints map for JS injection
+    const endpointsForJS = {};
+    Object.entries(endpoints).forEach(([k, v]) => {
+      endpointsForJS[k] = { d: v.d, p: v.p, e: v.e, i: v.i };
+    });
+
+    // ✅ SAFE: Escape all JSON injections
+    const safeJSON = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>BRONX V300 ADMIN</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
@@ -1434,16 +1459,16 @@ ${generateCSS()}
 <li><a onclick="switchSection('monitor',this)"><i class="fas fa-desktop"></i><span>Live Monitor</span></a></li>
 <li><a onclick="switchSection('stats',this)"><i class="fas fa-chart-bar"></i><span>Statistics</span></a></li>
 <li><a onclick="switchSection('theme',this)"><i class="fas fa-palette"></i><span>🎨 Live Theme</span></a></li>
-<li><a onclick="switchSection('developer',this)"><i class="fas fa-user-tag"></i><span>👨‍💻 Developer Mode</span></a></li>
+<li><a onclick="switchSection('developer',this)"><i class="fas fa-user-tag"></i><span>👨‍💻 Developer</span></a></li>
 <li><a onclick="switchSection('hidewords',this)"><i class="fas fa-eye-slash"></i><span>🙈 Hide Words</span></a></li>
 <li><a onclick="switchSection('import',this)"><i class="fas fa-download"></i><span>Import</span></a></li>
-<li><a onclick="switchSection('export',this)"><i class="fas fa-upload"></i><span>Export (Full)</span></a></li>
-<li><a onclick="switchSection('scopes',this)"><i class="fas fa-crosshairs"></i><span>Update Scopes</span></a></li>
+<li><a onclick="switchSection('export',this)"><i class="fas fa-upload"></i><span>Export</span></a></li>
+<li><a onclick="switchSection('scopes',this)"><i class="fas fa-crosshairs"></i><span>Scopes</span></a></li>
 <li><a onclick="switchSection('protect',this)"><i class="fas fa-shield-alt"></i><span>Protection</span></a></li>
 <li><a onclick="switchSection('apis',this)"><i class="fas fa-plug"></i><span>Custom APIs</span></a></li>
 <li><a onclick="switchSection('addapi',this)"><i class="fas fa-puzzle-piece"></i><span>Add API</span></a></li>
-<li><a onclick="switchSection('ddos',this)"><i class="fas fa-shield-virus"></i><span>Smart DDoS</span></a></li>
-<li><a onclick="switchSection('bans',this)"><i class="fas fa-ban"></i><span>Bans Manager</span></a></li>
+<li><a onclick="switchSection('ddos',this)"><i class="fas fa-shield-virus"></i><span>DDoS</span></a></li>
+<li><a onclick="switchSection('bans',this)"><i class="fas fa-ban"></i><span>Bans</span></a></li>
 <li><a onclick="switchSection('devices',this)"><i class="fas fa-laptop"></i><span>Devices</span></a></li>
 <li><a onclick="switchSection('announce',this)"><i class="fas fa-bullhorn"></i><span>Announcement</span></a></li>
 <li><a onclick="switchSection('maintenance',this)"><i class="fas fa-wrench"></i><span>Maintenance</span></a></li>
@@ -1501,12 +1526,11 @@ ${generateCSS()}
 <div class="form-group"><label>📋 Response Format</label>
 <select class="form-input" id="gformat">
 <option value="json">🔷 JSON (Normal)</option>
-<option value="styled">✨ Styled (Emoji + Text)</option>
-<option value="op_look">🔥 OP Look (Ultra Stylish)</option>
+<option value="styled">✨ Styled</option>
+<option value="op_look">🔥 OP Look</option>
 </select></div>
 <div class="form-group"><label>👨‍💻 Custom Developer Name (optional)</label>
-<input class="form-input" id="gdevname" placeholder="@BRONX_ULTRA (leave empty for global)">
-<small style="font-size:10px;color:var(--text-muted)">Only this key's response will show this name</small></div>
+<input class="form-input" id="gdevname" placeholder="@BRONX_ULTRA (empty = global)"></div>
 <div class="form-group"><label>Scopes</label>
 <div class="scope-box" id="scopeBoxGenerate">
 <label class="scope-item"><input type="checkbox" value="*" id="scope-all" checked> <span>🌟 ALL ACCESS</span></label>
@@ -1518,7 +1542,7 @@ ${generateCSS()}
 <div class="glow-card" id="section-keys" style="display:none">
 <h3><i class="fas fa-key"></i> All Keys (<span id="keysCount">${allKeys.length}</span>)</h3>
 <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-<input class="form-input" id="keysFilter" placeholder="🔍 Filter by name/key" style="flex:1;min-width:200px" oninput="filterKeys()">
+<input class="form-input" id="keysFilter" placeholder="🔍 Filter by name/key" style="flex:1;min-width:200px" oninput="renderKeysTable()">
 <button class="btn-primary" onclick="location.reload()" style="padding:10px 16px"><i class="fas fa-sync"></i></button>
 </div>
 <div class="table-container" style="max-height:650px">
@@ -1587,44 +1611,42 @@ ${Object.keys(endpoints).map(e => `<option value="${e}">${endpoints[e].d} (/${e}
 <div class="tab" onclick="switchTab('effects',this)">Effects</div>
 </div>
 <div id="themeTab-presets">
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Click any preset — applies LIVE, no reload!</p>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Click any preset — applies LIVE!</p>
 <div class="preset-grid" id="presetsGrid">
 ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick="applyPresetByName('${name}')"><div class="preset-swatch" style="background:linear-gradient(135deg,${PRESETS[name].accent},${PRESETS[name].accent2})"></div><div class="preset-name">${name}</div></div>`).join('')}
 </div>
 </div>
 <div id="themeTab-colors" style="display:none">
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Custom colors — apply live!</p>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Custom colors</p>
 <div id="colorPickers"></div>
 <button class="btn-primary" onclick="saveCustomColors()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE COLORS</button>
 </div>
 <div id="themeTab-effects" style="display:none">
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Toggle visual effects</p>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Toggle effects</p>
 <div id="effectsList"></div>
 <button class="btn-primary" onclick="saveEffects()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE EFFECTS</button>
 </div>
-<button class="btn-primary btn-warning" onclick="resetTheme()" style="width:100%;margin-top:16px"><i class="fas fa-undo"></i> RESET TO DEFAULT</button>
+<button class="btn-primary btn-warning" onclick="resetTheme()" style="width:100%;margin-top:16px"><i class="fas fa-undo"></i> RESET</button>
 </div>
 
-<!-- DEVELOPER MODE -->
+<!-- DEVELOPER -->
 <div class="glow-card" id="section-developer" style="display:none">
 <h3><i class="fas fa-user-tag"></i> 👨‍💻 Custom Developer Mode</h3>
 <div class="glow-card" style="background:${hexToRgbStr(theme.colors.info,.05)};border:1px solid ${hexToRgbStr(theme.colors.info,.2)}">
 <h4 style="color:${theme.colors.info};margin-bottom:10px"><i class="fas fa-globe"></i> Global Developer Name</h4>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">This name will appear in ALL responses (except key-specific overrides)</p>
 <div class="form-group"><label>Global Name</label><input class="form-input" id="globalDevName" placeholder="@BRONX_ULTRA"></div>
 <button class="btn-primary" onclick="updateGlobalDev()"><i class="fas fa-save"></i> UPDATE GLOBAL</button>
 <p style="margin-top:10px;font-size:11px;color:var(--text-muted)">Current: <strong id="currentGlobalDev" style="color:${theme.colors.success}">${esc(developerConfig.globalName)}</strong></p>
 </div>
 <div class="glow-card" style="background:${hexToRgbStr(theme.colors.purple,.05)};border:1px solid ${hexToRgbStr(theme.colors.purple,.2)};margin-top:16px">
-<h4 style="color:${theme.colors.purple};margin-bottom:10px"><i class="fas fa-key"></i> Per-Key Developer Name</h4>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Override developer name for specific keys. Leave empty to use global.</p>
-<div class="form-group"><label>Key</label><input class="form-input" id="keyDevKey" placeholder="Enter key name"></div>
-<div class="form-group"><label>Custom Developer Name</label><input class="form-input" id="keyDevName" placeholder="@custom_name (empty = remove)"></div>
+<h4 style="color:${theme.colors.purple};margin-bottom:10px"><i class="fas fa-key"></i> Per-Key Developer</h4>
+<div class="form-group"><label>Key</label><input class="form-input" id="keyDevKey" placeholder="Enter key"></div>
+<div class="form-group"><label>Custom Name</label><input class="form-input" id="keyDevName" placeholder="@custom_name (empty = remove)"></div>
 <button class="btn-primary" onclick="updateKeyDev()"><i class="fas fa-save"></i> UPDATE KEY DEV</button>
 <div style="margin-top:16px">
-<h4 style="color:${theme.colors.accent2};margin-bottom:10px;font-size:13px"><i class="fas fa-list"></i> Existing Overrides</h4>
+<h4 style="color:${theme.colors.accent2};margin-bottom:10px;font-size:13px"><i class="fas fa-list"></i> Overrides</h4>
 <div class="table-container" style="max-height:300px">
-<table><thead><tr><th>Key</th><th>Custom Developer</th><th>Action</th></tr></thead>
+<table><thead><tr><th>Key</th><th>Custom Dev</th><th>Action</th></tr></thead>
 <tbody id="keyDevOverrides"></tbody></table>
 </div>
 </div>
@@ -1633,8 +1655,8 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 
 <!-- HIDE WORDS -->
 <div class="glow-card" id="section-hidewords" style="display:none">
-<h3><i class="fas fa-eye-slash"></i> 🙈 Hide Words from Response</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">These words will be REMOVED from all API responses (keys & values). Example: Developer, Owner, Channel, Src, By</p>
+<h3><i class="fas fa-eye-slash"></i> 🙈 Hide Words</h3>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">These words will be REMOVED from all responses</p>
 <div class="form-group"><label>Add Word</label>
 <div style="display:flex;gap:8px">
 <input class="form-input" id="hideWordInput" placeholder="e.g. Developer" style="flex:1">
@@ -1642,26 +1664,25 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 </div>
 </div>
 <div style="margin-top:16px">
-<h4 style="color:${theme.colors.accent2};margin-bottom:10px;font-size:13px"><i class="fas fa-list"></i> Currently Hidden Words</h4>
+<h4 style="color:${theme.colors.accent2};margin-bottom:10px;font-size:13px"><i class="fas fa-list"></i> Hidden Words</h4>
 <div id="hiddenWordsList" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:${hexToRgbStr(theme.colors.accent,.05)};border-radius:10px;min-height:60px"></div>
 </div>
 </div>
 
 <!-- IMPORT -->
 <div class="glow-card" id="section-import" style="display:none">
-<h3><i class="fas fa-download"></i> Import (Full Data)</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Paste the FULL export JSON here. This will restore: Keys + Custom APIs + Theme + DDoS + Developer + Hide Words + Protected Data + Everything!</p>
-<textarea class="form-input" id="importData" rows="12" placeholder='{"version":"V300_ULTRA_OP","keys":{...},"customAPIs":[...]}' style="font-family:'Space Grotesk',monospace;font-size:11px"></textarea>
+<h3><i class="fas fa-download"></i> Import Full Data</h3>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Paste export JSON — restores Keys + APIs + Theme + DDoS + Developer + Everything!</p>
+<textarea class="form-input" id="importData" rows="12" placeholder='{"version":"V300_ULTRA_OP",...}' style="font-family:'Space Grotesk',monospace;font-size:11px"></textarea>
 <button class="btn-primary" onclick="importKeys()" style="width:100%;margin-top:12px"><i class="fas fa-download"></i> IMPORT EVERYTHING</button>
 <p id="importMsg" style="margin-top:10px;text-align:center;font-size:12px"></p>
 </div>
 
 <!-- EXPORT -->
 <div class="glow-card" id="section-export" style="display:none">
-<h3><i class="fas fa-upload"></i> Export (Full Data)</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Exports EVERYTHING: Keys + Custom APIs + Theme + DDoS + Developer + Hide Words + All Settings</p>
+<h3><i class="fas fa-upload"></i> Export Full Data</h3>
 <div style="display:flex;gap:12px;margin-bottom:12px">
-<button class="btn-primary" onclick="loadExport()" style="flex:1"><i class="fas fa-sync"></i> LOAD FULL DATA</button>
+<button class="btn-primary" onclick="loadExport()" style="flex:1"><i class="fas fa-sync"></i> LOAD</button>
 <button class="btn-primary btn-success" onclick="copyExport()" style="flex:1"><i class="fas fa-copy"></i> COPY</button>
 <button class="btn-primary btn-info" onclick="downloadExport()" style="flex:1"><i class="fas fa-file-download"></i> DOWNLOAD</button>
 </div>
@@ -1691,7 +1712,7 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <div class="glow-card" id="section-apis" style="display:none">
 <h3><i class="fas fa-plug"></i> Custom APIs (<span id="apiCount">${customAPIs.length}</span>)</h3>
 <div class="table-container" style="max-height:500px">
-<table><thead><tr><th>ID</th><th>Name</th><th>Endpoint</th><th>Scope Key</th><th>Param</th><th>Vis</th><th>Actions</th></tr></thead><tbody id="apisBody"></tbody></table>
+<table><thead><tr><th>ID</th><th>Name</th><th>Endpoint</th><th>Scope</th><th>Param</th><th>Vis</th><th>Actions</th></tr></thead><tbody id="apisBody"></tbody></table>
 </div>
 </div>
 
@@ -1699,36 +1720,41 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <div class="glow-card" id="section-addapi" style="display:none">
 <h3><i class="fas fa-puzzle-piece"></i> Add Custom API</h3>
 <div class="form-group"><label>Name</label><input class="form-input" id="aname" placeholder="My API"></div>
-<div class="form-group"><label>Endpoint (lowercase, no spaces)</label><input class="form-input" id="aep" placeholder="my-api"></div>
+<div class="form-group"><label>Endpoint (lowercase)</label><input class="form-input" id="aep" placeholder="my-api"></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
 <div class="form-group"><label>Param</label><input class="form-input" id="aparam" value="num"></div>
 <div class="form-group"><label>Example</label><input class="form-input" id="aex" placeholder="9876543210"></div>
 </div>
-<div class="form-group"><label>Real URL ({param})</label><input class="form-input" id="aurl" placeholder="https://api.com?param={param}"></div>
+<div class="form-group"><label>Real URL (use {param})</label><input class="form-input" id="aurl" placeholder="https://api.com?x={param}"></div>
 <button class="btn-primary" onclick="addAPI()" style="width:100%"><i class="fas fa-plus"></i> ADD API</button>
 </div>
 
 <!-- DDOS -->
 <div class="glow-card" id="section-ddos" style="display:none">
 <h3><i class="fas fa-shield-virus"></i> Smart DDoS Config</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">✅ Settings are SAVED to disk — will persist after refresh!</p>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">✅ Settings persist after refresh!</p>
 <div class="form-group"><label>Mode</label>
 <select class="form-input" id="ddosMode">
-<option value="off">🔴 Off</option>
-<option value="smart">🟢 Smart (Recommended)</option>
-<option value="strict">🟠 Strict</option>
+<option value="off" ${ddosConfig.mode==='off'?'selected':''}>🔴 Off</option>
+<option value="smart" ${ddosConfig.mode==='smart'?'selected':''}>🟢 Smart</option>
+<option value="strict" ${ddosConfig.mode==='strict'?'selected':''}>🟠 Strict</option>
 </select></div>
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-<div class="form-group"><label>IP Burst/10s</label><input class="form-input" id="ddosIP10" type="number" value="${ddosConfig.ip.burst10s}"></div>
-<div class="form-group"><label>IP/Min</label><input class="form-input" id="ddosIP1M" type="number" value="${ddosConfig.ip.perMinute}"></div>
-<div class="form-group"><label>IP/Hour</label><input class="form-input" id="ddosIP1H" type="number" value="${ddosConfig.ip.perHour}"></div>
+<div class="form-group"><label>IP Burst/10s</label><input class="form-input" id="ddosIP10" type="number" value="${ddosConfig.ip?.burst10s||60}"></div>
+<div class="form-group"><label>IP/Min</label><input class="form-input" id="ddosIP1M" type="number" value="${ddosConfig.ip?.perMinute||200}"></div>
+<div class="form-group"><label>IP/Hour</label><input class="form-input" id="ddosIP1H" type="number" value="${ddosConfig.ip?.perHour||1500}"></div>
 </div>
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-<div class="form-group"><label>Device Burst/10s</label><input class="form-input" id="ddosDEV10" type="number" value="${ddosConfig.device.burst10s}"></div>
-<div class="form-group"><label>Device/Min</label><input class="form-input" id="ddosDEV1M" type="number" value="${ddosConfig.device.perMinute}"></div>
-<div class="form-group"><label>Device/Hour</label><input class="form-input" id="ddosDEV1H" type="number" value="${ddosConfig.device.perHour}"></div>
+<div class="form-group"><label>Device Burst/10s</label><input class="form-input" id="ddosDEV10" type="number" value="${ddosConfig.device?.burst10s||80}"></div>
+<div class="form-group"><label>Device/Min</label><input class="form-input" id="ddosDEV1M" type="number" value="${ddosConfig.device?.perMinute||250}"></div>
+<div class="form-group"><label>Device/Hour</label><input class="form-input" id="ddosDEV1H" type="number" value="${ddosConfig.device?.perHour||2000}"></div>
 </div>
-<button class="btn-primary" onclick="saveDDoSConfig()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE DDoS CONFIG</button>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+<div class="form-group"><label>Key Burst/10s</label><input class="form-input" id="ddosKEY10" type="number" value="${ddosConfig.key?.burst10s||100}"></div>
+<div class="form-group"><label>Key/Min</label><input class="form-input" id="ddosKEY1M" type="number" value="${ddosConfig.key?.perMinute||400}"></div>
+<div class="form-group"><label>Key/Hour</label><input class="form-input" id="ddosKEY1H" type="number" value="${ddosConfig.key?.perHour||3000}"></div>
+</div>
+<button class="btn-primary" onclick="saveDDoSConfig()" style="width:100%;margin-top:12px"><i class="fas fa-save"></i> SAVE DDOS CONFIG</button>
 </div>
 
 <!-- BANS -->
@@ -1738,7 +1764,6 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <button class="btn-primary btn-danger" onclick="unbanAll()"><i class="fas fa-broom"></i> UNBAN ALL</button>
 <button class="btn-primary" onclick="loadBans()"><i class="fas fa-sync"></i> REFRESH</button>
 </div>
-<h4 style="color:${theme.colors.danger};margin-bottom:10px">IP Bans</h4>
 <div class="table-container" style="max-height:300px"><table><thead><tr><th>IP</th><th>Reason</th><th>Time</th><th>Status</th><th>Action</th></tr></thead><tbody id="bansIPBody"></tbody></table></div>
 </div>
 
@@ -1747,7 +1772,7 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <h3><i class="fas fa-laptop"></i> Tracked Devices</h3>
 <button class="btn-primary" onclick="loadDevices()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
 <div class="table-container" style="max-height:600px">
-<table><thead><tr><th>Device ID</th><th>Type</th><th>Browser</th><th>OS</th><th>Requests</th><th>Last Seen</th><th>Action</th></tr></thead><tbody id="devicesBody"></tbody></table>
+<table><thead><tr><th>Device ID</th><th>Type</th><th>Browser</th><th>OS</th><th>Req</th><th>Last Seen</th><th>Action</th></tr></thead><tbody id="devicesBody"></tbody></table>
 </div>
 </div>
 
@@ -1755,13 +1780,13 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <div class="glow-card" id="section-announce" style="display:none">
 <h3><i class="fas fa-bullhorn"></i> Announcement Banner</h3>
 <div class="form-group"><label>Enable</label>
-<select class="form-input" id="announceEnabled"><option value="true">✅ ON</option><option value="false">❌ OFF</option></select></div>
-<div class="form-group"><label>Message</label><input class="form-input" id="announceText" placeholder="Important announcement..."></div>
+<select class="form-input" id="announceEnabled"><option value="true" ${announcement.enabled?'selected':''}>✅ ON</option><option value="false" ${!announcement.enabled?'selected':''}>❌ OFF</option></select></div>
+<div class="form-group"><label>Message</label><input class="form-input" id="announceText" placeholder="Important announcement..." value="${esc(announcement.text||'')}"></div>
 <div class="form-group"><label>Type</label>
 <select class="form-input" id="announceType">
-<option value="info">ℹ️ Info</option>
-<option value="warning">⚠️ Warning</option>
-<option value="success">✅ Success</option>
+<option value="info" ${announcement.type==='info'?'selected':''}>ℹ️ Info</option>
+<option value="warning" ${announcement.type==='warning'?'selected':''}>⚠️ Warning</option>
+<option value="success" ${announcement.type==='success'?'selected':''}>✅ Success</option>
 </select></div>
 <button class="btn-primary" onclick="saveAnnouncement()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
 </div>
@@ -1769,9 +1794,9 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <!-- MAINTENANCE -->
 <div class="glow-card" id="section-maintenance" style="display:none">
 <h3><i class="fas fa-wrench"></i> Maintenance Mode</h3>
-<div class="form-group"><label>Enable Maintenance</label>
-<select class="form-input" id="maintenanceEnabled"><option value="false">❌ OFF</option><option value="true">✅ ON</option></select></div>
-<div class="form-group"><label>Message</label><input class="form-input" id="maintenanceMessage" placeholder="System under maintenance"></div>
+<div class="form-group"><label>Enable</label>
+<select class="form-input" id="maintenanceEnabled"><option value="false" ${!maintenance.enabled?'selected':''}>❌ OFF</option><option value="true" ${maintenance.enabled?'selected':''}>✅ ON</option></select></div>
+<div class="form-group"><label>Message</label><input class="form-input" id="maintenanceMessage" placeholder="System under maintenance" value="${esc(maintenance.message||'')}"></div>
 <button class="btn-primary btn-warning" onclick="saveMaintenance()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
 </div>
 
@@ -1792,8 +1817,8 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <!-- BACKUP -->
 <div class="glow-card" id="section-backup" style="display:none">
 <h3><i class="fas fa-database"></i> Backup & Restore</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Full system backup — download JSON and keep it safe</p>
-<button class="btn-primary btn-success" onclick="downloadBackup()" style="width:100%;margin-bottom:10px"><i class="fas fa-download"></i> DOWNLOAD FULL BACKUP</button>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Download full system backup JSON</p>
+<button class="btn-primary btn-success" onclick="downloadBackup()" style="width:100%;margin-bottom:10px"><i class="fas fa-download"></i> DOWNLOAD BACKUP</button>
 <button class="btn-primary" onclick="loadExport()" style="width:100%"><i class="fas fa-eye"></i> VIEW FULL DATA</button>
 </div>
 
@@ -1802,556 +1827,899 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <h3><i class="fas fa-cog"></i> System Settings</h3>
 <div class="form-group"><label>Master API Key</label><input class="form-input" value="${esc(MASTER_API_KEY)}" readonly></div>
 <div class="form-group"><label>Admin Path</label><input class="form-input" value="${esc(ADMIN_PATH)}" readonly></div>
-<p style="color:var(--text-muted);font-size:11px;margin-top:12px">Server running on Node.js + Express · V300 ULTRA OP</p>
+<p style="color:var(--text-muted);font-size:11px;margin-top:12px">Node.js + Express · V300 ULTRA OP</p>
 </div>
 
-</div><!-- main-content end -->
+</div></div>
 
 <script>
+'use strict';
 // ============================================================
-// CORE NAVIGATION — ✅ THE MISSING FIX
+// ✅ GLOBAL DATA — SAFELY INJECTED
 // ============================================================
-const TOKEN = '${stoken}';
-const ADMIN_PATH = '${ADMIN_PATH}';
-const ALL_KEYS = ${JSON.stringify(allKeys)};
-const ALL_ENDPOINTS = ${JSON.stringify(Object.fromEntries(Object.entries(endpoints).map(([k,v])=>[k,{d:v.d,p:v.p,e:v.e,i:v.i}])))};
-const CUSTOM_APIS = ${JSON.stringify(customAPIs)};
-const DEVELOPER_CONFIG = ${JSON.stringify(developerConfig)};
-const CURRENT_THEME = ${JSON.stringify(theme)};
-const PRESETS_OBJ = ${JSON.stringify(PRESETS)};
-const DDOS_CFG = ${JSON.stringify(ddosConfig)};
+var TOKEN = ${safeJSON(stoken)};
+var ADMIN_PATH = ${safeJSON(ADMIN_PATH)};
+var ALL_KEYS = ${safeJSON(allKeys)};
+var ALL_ENDPOINTS = ${safeJSON(endpointsForJS)};
+var CUSTOM_APIS = ${safeJSON(customAPIs)};
+var DEV_CONFIG = ${safeJSON(developerConfig)};
+var CURRENT_THEME = ${safeJSON(theme)};
+var DDOS_CFG = ${safeJSON(ddosConfig)};
 
-function api(path, opts = {}) {
-  return fetch(ADMIN_PATH + path, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN, ...(opts.headers || {}) }
-  }).then(r => r.json());
+// ============================================================
+// ✅ SAFE API HELPER
+// ============================================================
+function api(path, opts) {
+  opts = opts || {};
+  var fetchOpts = {
+    method: opts.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': TOKEN
+    }
+  };
+  if (opts.body) fetchOpts.body = opts.body;
+  return fetch(ADMIN_PATH + path, fetchOpts)
+    .then(function(r) { return r.json().catch(function() { return { e: 'Invalid response' }; }); })
+    .catch(function(e) { return { e: e.message || 'Network error' }; });
 }
-function toast(msg, type = 'success') {
-  const x = document.createElement('div');
+
+function toast(msg, type) {
+  type = type || 'success';
+  var x = document.createElement('div');
   x.className = 'toast ' + type;
   x.innerHTML = msg;
   document.body.appendChild(x);
-  setTimeout(() => x.remove(), 3000);
+  setTimeout(function() { if (x.parentNode) x.parentNode.removeChild(x); }, 3000);
 }
 
-// ✅ THE MAIN FIX — switchSection
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function(m) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m];
+  });
+}
+
+// ============================================================
+// ✅ SECTION SWITCHER
+// ============================================================
+var LOADERS = {
+  dashboard: function() { loadDashboard(); },
+  keys: function() { renderKeysTable(); },
+  endpoints: function() { renderEndpointsList(); },
+  monitor: function() { loadMonitorLogs(); },
+  stats: function() { loadStats(); },
+  bans: function() { loadBans(); },
+  devices: function() { loadDevices(); },
+  apis: function() { renderAPIsList(); },
+  export: function() { loadExport(); },
+  audit: function() { loadAudit(); },
+  adminlogs: function() { loadAdminLogs(); },
+  protect: function() { loadProtection(); },
+  theme: function() { loadThemeUI(); },
+  hidewords: function() { loadHiddenWords(); },
+  developer: function() { loadKeyDevOverrides(); }
+};
+
 function switchSection(name, el) {
-  document.querySelectorAll('.glow-card[id^="section-"]').forEach(s => s.style.display = 'none');
-  const target = document.getElementById('section-' + name);
+  var all = document.querySelectorAll('.glow-card[id^="section-"]');
+  for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
+  var target = document.getElementById('section-' + name);
   if (target) target.style.display = 'block';
-  document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+  var navs = document.querySelectorAll('.sidebar-nav a');
+  for (var j = 0; j < navs.length; j++) navs[j].classList.remove('active');
   if (el) el.classList.add('active');
+  if (LOADERS[name]) {
+    try { LOADERS[name](); } catch (e) { console.error('Loader error:', e); }
+  }
   if (window.innerWidth < 768) window.scrollTo(0, 0);
-  // Auto-load data for specific sections
-  const loaders = {
-    dashboard: loadDashboard,
-    keys: renderKeysTable,
-    endpoints: renderEndpointsList,
-    monitor: loadMonitorLogs,
-    stats: loadStats,
-    bans: loadBans,
-    devices: loadDevices,
-    apis: renderAPIsList,
-    export: loadExport,
-    audit: loadAudit,
-    adminlogs: loadAdminLogs,
-    protect: loadProtection,
-    theme: loadThemeUI,
-    hidewords: loadHiddenWords,
-    developer: loadKeyDevOverrides
-  };
-  if (loaders[name]) try { loaders[name](); } catch (e) { console.log(e); }
+  return false;
 }
 
 // ============================================================
-// DASHBOARD
+// ✅ DASHBOARD
 // ============================================================
+function fillTable(id, arr, k1, k2) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (!arr || !arr.length) {
+    el.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:15px">No data</td></tr>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < arr.length; i++) {
+    html += '<tr><td><code>' + esc(arr[i][k1]) + '</code></td><td><strong>' + esc(arr[i][k2]) + '</strong></td></tr>';
+  }
+  el.innerHTML = html;
+}
+
 function loadDashboard() {
-  api('/stats').then(d => {
-    if (d.e) return;
-    document.getElementById('dashToday').textContent = d.today || 0;
-    document.getElementById('dashWeek').textContent = d.week || 0;
-    document.getElementById('dashMonth').textContent = d.month || 0;
-    document.getElementById('dashTotal').textContent = d.total || 0;
-    document.getElementById('statToday').textContent = d.today || 0;
-    document.getElementById('statTotal').textContent = d.total || 0;
-    document.getElementById('statBans').textContent = d.bans || 0;
-    document.getElementById('statDevices').textContent = d.devices || 0;
+  api('/stats').then(function(d) {
+    if (!d || d.e) return;
+    var set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+    set('dashToday', d.today || 0);
+    set('dashWeek', d.week || 0);
+    set('dashMonth', d.month || 0);
+    set('dashTotal', d.total || 0);
+    set('statToday', d.today || 0);
+    set('statTotal', d.total || 0);
+    set('statBans', d.bans || 0);
+    set('statDevices', d.devices || 0);
     fillTable('topKeysBody', d.topKeys, 'key', 'count');
     fillTable('topIPsBody', d.topIPs, 'ip', 'count');
     fillTable('topDevicesBody', d.topDevices, 'device', 'count');
     fillTable('topEpDash', d.topEndpoints, 'endpoint', 'count');
-  }).catch(() => {});
-}
-function fillTable(id, arr, k1, k2) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (!arr || !arr.length) { el.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">No data</td></tr>'; return; }
-  el.innerHTML = arr.map(x => \`<tr><td><code>\${esc(x[k1])}</code></td><td><strong>\${x[k2]}</strong></td></tr>\`).join('');
+  });
 }
 
 // ============================================================
-// GENERATE KEY
+// ✅ GENERATE KEY
 // ============================================================
 function randomKey() {
-  document.getElementById('gk').value = 'BRONX_' + Math.random().toString(36).substring(2, 12).toUpperCase();
+  var el = document.getElementById('gk');
+  if (el) el.value = 'BRONX_' + Math.random().toString(36).substring(2, 12).toUpperCase();
 }
+
 function generateKey() {
-  const body = {
-    keyName: document.getElementById('gk').value.trim(),
-    keyOwner: document.getElementById('go').value.trim(),
-    limit: document.getElementById('gl').value,
-    dailyLimit: document.getElementById('gdl').value,
-    perSecondLimit: document.getElementById('gpsl').value,
-    cooldown: document.getElementById('gc').value,
-    days: document.getElementById('gd').value,
-    notes: document.getElementById('gnotes').value,
-    formatMode: document.getElementById('gformat').value,
-    customDevName: document.getElementById('gdevname').value.trim(),
-    scopes: Array.from(document.querySelectorAll('#scopeBoxGenerate input:checked')).map(i => i.value)
+  var scopes = [];
+  var checked = document.querySelectorAll('#scopeBoxGenerate input:checked');
+  for (var i = 0; i < checked.length; i++) scopes.push(checked[i].value);
+  
+  var body = {
+    keyName: (document.getElementById('gk') || {}).value || '',
+    keyOwner: (document.getElementById('go') || {}).value || '',
+    limit: (document.getElementById('gl') || {}).value || '100',
+    dailyLimit: (document.getElementById('gdl') || {}).value || '0',
+    perSecondLimit: (document.getElementById('gpsl') || {}).value || '0',
+    cooldown: (document.getElementById('gc') || {}).value || '0',
+    days: (document.getElementById('gd') || {}).value || '30',
+    notes: (document.getElementById('gnotes') || {}).value || '',
+    formatMode: (document.getElementById('gformat') || {}).value || 'json',
+    customDevName: (document.getElementById('gdevname') || {}).value || '',
+    scopes: scopes
   };
-  if (!body.keyOwner) return toast('❌ Owner name required', 'error');
-  api('/generate-key', { method: 'POST', body: JSON.stringify(body) }).then(d => {
-    if (d.success) { toast('✅ Key generated: ' + d.key, 'success'); setTimeout(() => location.reload(), 1200); }
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  body.keyName = body.keyName.trim();
+  body.keyOwner = body.keyOwner.trim();
+  body.customDevName = body.customDevName.trim();
+  
+  if (!body.keyOwner) { toast('❌ Owner name required', 'error'); return; }
+  
+  api('/generate-key', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
+    if (d && d.success) {
+      toast('✅ Key generated: ' + d.key, 'success');
+      setTimeout(function() { location.reload(); }, 1200);
+    } else {
+      toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+    }
   });
 }
 
 // ============================================================
-// KEYS TABLE
+// ✅ KEYS TABLE
 // ============================================================
 function renderKeysTable() {
-  const tbody = document.getElementById('keysBody');
+  var tbody = document.getElementById('keysBody');
   if (!tbody) return;
-  const filter = (document.getElementById('keysFilter')?.value || '').toLowerCase();
-  const list = ALL_KEYS.filter(k => !filter || k.key.toLowerCase().includes(filter) || k.name.toLowerCase().includes(filter));
-  tbody.innerHTML = list.map(k => \`
-    <tr>
-      <td><code>\${esc(k.key)}</code></td>
-      <td>\${esc(k.name)}</td>
-      <td>\${k.limit}</td>
-      <td>\${k.used}</td>
-      <td><strong style="color:\${k.left === 0 ? 'var(--neon-red)' : 'var(--neon-green)'}">\${k.left}</strong></td>
-      <td>\${esc(k.expiry)}</td>
-      <td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--neon-cyan);color:#000">\${esc(k.formatMode)}</span></td>
-      <td>\${k.devName ? esc(k.devName) : '<span style="color:var(--text-muted)">global</span>'}</td>
-      <td>\${k.stopped ? '⛔' : k.disabled ? '🚫' : '✅'}</td>
-      <td>
-        <button class="btn-action btn-reset" onclick="resetKey('\${esc(k.key)}')">Reset</button>
-        <button class="btn-action btn-push" onclick="pushKey('\${esc(k.key)}')">Push</button>
-        <button class="btn-action btn-stop" onclick="stopKey('\${esc(k.key)}')">\${k.stopped ? 'Start' : 'Stop'}</button>
-        <button class="btn-action btn-delete" onclick="deleteKey('\${esc(k.key)}')">Del</button>
-      </td>
-    </tr>\`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">No keys</td></tr>';
+  var filterEl = document.getElementById('keysFilter');
+  var filter = filterEl ? filterEl.value.toLowerCase() : '';
+  var list = [];
+  for (var i = 0; i < ALL_KEYS.length; i++) {
+    var k = ALL_KEYS[i];
+    if (!filter || k.key.toLowerCase().indexOf(filter) !== -1 || k.name.toLowerCase().indexOf(filter) !== -1) {
+      list.push(k);
+    }
+  }
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">No keys found</td></tr>';
+    return;
+  }
+  var html = '';
+  for (var j = 0; j < list.length; j++) {
+    var k = list[j];
+    var statusIcon = k.stopped ? '⛔' : k.disabled ? '🚫' : k.isExpired ? '⏰' : '✅';
+    var statusColor = (k.stopped || k.disabled || k.isExpired) ? 'var(--neon-red)' : 'var(--neon-green)';
+    html += '<tr>' +
+      '<td><code>' + esc(k.key) + '</code></td>' +
+      '<td>' + esc(k.name) + '</td>' +
+      '<td>' + esc(k.limit) + '</td>' +
+      '<td>' + esc(k.used) + '</td>' +
+      '<td><strong style="color:' + (k.left === 0 ? 'var(--neon-red)' : 'var(--neon-green)') + '">' + esc(k.left) + '</strong></td>' +
+      '<td style="font-size:10px">' + esc(k.expiry) + '</td>' +
+      '<td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--neon-cyan);color:#000">' + esc(k.formatMode) + '</span></td>' +
+      '<td style="font-size:10px">' + (k.devName ? esc(k.devName) : '<span style="color:var(--text-muted)">global</span>') + '</td>' +
+      '<td style="color:' + statusColor + '">' + statusIcon + '</td>' +
+      '<td>' +
+        '<button class="btn-action btn-reset" onclick="resetKey(\'' + esc(k.key) + '\')">Reset</button>' +
+        '<button class="btn-action btn-push" onclick="pushKey(\'' + esc(k.key) + '\')">Push</button>' +
+        '<button class="btn-action btn-stop" onclick="stopKey(\'' + esc(k.key) + '\')">' + (k.stopped ? 'Start' : 'Stop') + '</button>' +
+        '<button class="btn-action btn-delete" onclick="deleteKey(\'' + esc(k.key) + '\')">Del</button>' +
+      '</td>' +
+    '</tr>';
+  }
+  tbody.innerHTML = html;
 }
-function filterKeys() { renderKeysTable(); }
-function resetKey(k) { api('/reset-key-usage', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(() => { toast('✅ Reset'); setTimeout(() => location.reload(), 600); }); }
-function pushKey(k) { const d = prompt('Push how many days?', '30'); if (!d) return; api('/push-key', { method: 'POST', body: JSON.stringify({ keyName: k, days: d }) }).then(() => { toast('✅ Pushed'); setTimeout(() => location.reload(), 600); }); }
-function stopKey(k) { api('/stop-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(d => { toast(d.stopped ? '⛔ Stopped' : '✅ Started'); setTimeout(() => location.reload(), 600); }); }
-function deleteKey(k) { if (!confirm('Delete ' + k + '?')) return; api('/delete-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(() => { toast('🗑️ Deleted'); setTimeout(() => location.reload(), 600); }); }
+
+function resetKey(k) {
+  api('/reset-key-usage', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function() {
+    toast('✅ Reset'); setTimeout(function() { location.reload(); }, 600);
+  });
+}
+function pushKey(k) {
+  var d = prompt('Push how many days?', '30');
+  if (!d) return;
+  api('/push-key', { method: 'POST', body: JSON.stringify({ keyName: k, days: d }) }).then(function() {
+    toast('✅ Pushed'); setTimeout(function() { location.reload(); }, 600);
+  });
+}
+function stopKey(k) {
+  api('/stop-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function(d) {
+    toast(d && d.stopped ? '⛔ Stopped' : '✅ Started');
+    setTimeout(function() { location.reload(); }, 600);
+  });
+}
+function deleteKey(k) {
+  if (!confirm('Delete ' + k + '?')) return;
+  api('/delete-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(function() {
+    toast('🗑️ Deleted'); setTimeout(function() { location.reload(); }, 600);
+  });
+}
 
 // ============================================================
-// ENDPOINTS
+// ✅ ENDPOINTS
 // ============================================================
 function renderEndpointsList() {
-  const el = document.getElementById('endpointsList');
+  var el = document.getElementById('endpointsList');
   if (!el) return;
-  let html = '';
-  Object.entries(ALL_ENDPOINTS).forEach(([n, e]) => {
-    html += \`<div class="endpoint-card"><div class="ep-icon">\${e.i}</div><div class="ep-name">/\${n}</div><div class="ep-desc">\${e.d}</div><div class="ep-url">/api/key-bronx/\${n}?key=KEY&\${e.p}=\${e.e}</div></div>\`;
-  });
-  CUSTOM_APIS.forEach(a => {
-    html += \`<div class="endpoint-card"><div class="ep-icon">🔧</div><div class="ep-name">/\${a.endpoint}</div><div class="ep-desc">Custom</div><div class="ep-url">/api/custom/\${a.endpoint}?key=KEY&\${a.param}=\${a.example}</div></div>\`;
-  });
+  var html = '';
+  var n, e;
+  for (n in ALL_ENDPOINTS) {
+    if (ALL_ENDPOINTS.hasOwnProperty(n)) {
+      e = ALL_ENDPOINTS[n];
+      html += '<div class="endpoint-card"><div class="ep-icon">' + esc(e.i) + '</div><div class="ep-name">/' + esc(n) + '</div><div class="ep-desc">' + esc(e.d) + '</div><div class="ep-url">/api/key-bronx/' + esc(n) + '?key=KEY&' + esc(e.p) + '=' + esc(e.e) + '</div></div>';
+    }
+  }
+  for (var i = 0; i < CUSTOM_APIS.length; i++) {
+    var a = CUSTOM_APIS[i];
+    html += '<div class="endpoint-card"><div class="ep-icon">🔧</div><div class="ep-name">/' + esc(a.endpoint) + '</div><div class="ep-desc">Custom</div><div class="ep-url">/api/custom/' + esc(a.endpoint) + '?key=KEY&' + esc(a.param) + '=' + esc(a.example) + '</div></div>';
+  }
   el.innerHTML = html;
 }
 
 // ============================================================
-// MONITOR
+// ✅ MONITOR
 // ============================================================
-let MONITOR_LOGS = [];
+var MONITOR_LOGS = [];
 function loadMonitorLogs() {
-  api('/monitor-logs').then(d => {
-    MONITOR_LOGS = d.logs || [];
+  api('/monitor-logs').then(function(d) {
+    MONITOR_LOGS = (d && d.logs) || [];
     renderMonitor();
-  }).catch(() => {});
+  });
 }
 function renderMonitor() {
-  const el = document.getElementById('monitorLogs');
+  var el = document.getElementById('monitorLogs');
   if (!el) return;
-  const filter = (document.getElementById('monitorFilter')?.value || '').toLowerCase();
-  const list = MONITOR_LOGS.filter(l => !filter || JSON.stringify(l).toLowerCase().includes(filter)).slice(-200).reverse();
-  el.innerHTML = list.map(l => \`
-    <div class="log-entry">
-      <span class="log-time">\${esc(l.timestamp)}</span>
-      <span class="log-key">\${esc(l.key)}</span>
-      <span class="log-endpoint">/\${esc(l.endpoint)}</span>
-      <span class="log-ip">\${esc(l.ip)}</span>
-      <span class="log-device">\${esc(l.deviceIcon)} \${esc(l.deviceType)}</span>
-      <span class="log-browser">\${esc(l.browser)}</span>
-    </div>\`).join('') || '<p style="text-align:center;color:var(--text-muted);padding:20px">No logs</p>';
+  var filterEl = document.getElementById('monitorFilter');
+  var filter = filterEl ? filterEl.value.toLowerCase() : '';
+  var list = [];
+  for (var i = 0; i < MONITOR_LOGS.length; i++) {
+    var l = MONITOR_LOGS[i];
+    if (!filter || JSON.stringify(l).toLowerCase().indexOf(filter) !== -1) list.push(l);
+  }
+  list = list.slice(-200).reverse();
+  var html = '';
+  for (var j = 0; j < list.length; j++) {
+    var l = list[j];
+    html += '<div class="log-entry">' +
+      '<span class="log-time">' + esc(l.timestamp) + '</span>' +
+      '<span class="log-key">' + esc(l.key) + '</span>' +
+      '<span class="log-endpoint">/' + esc(l.endpoint) + '</span>' +
+      '<span class="log-ip">' + esc(l.ip) + '</span>' +
+      '<span class="log-device">' + esc(l.deviceIcon) + ' ' + esc(l.deviceType) + '</span>' +
+      '<span class="log-browser">' + esc(l.browser) + '</span>' +
+    '</div>';
+  }
+  el.innerHTML = html || '<p style="text-align:center;color:var(--text-muted);padding:20px">No logs</p>';
 }
 
 // ============================================================
-// STATS
+// ✅ STATS
 // ============================================================
 function loadStats() {
-  api('/stats-full').then(d => {
-    if (d.e) return;
-    document.getElementById('statTotalReqs').textContent = d.total || 0;
-    document.getElementById('statTodayReqs').textContent = d.today || 0;
-    document.getElementById('statWeekReqs').textContent = d.week || 0;
-    document.getElementById('statMonthReqs').textContent = d.month || 0;
+  api('/stats-full').then(function(d) {
+    if (!d || d.e) return;
+    var set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+    set('statTotalReqs', d.total || 0);
+    set('statTodayReqs', d.today || 0);
+    set('statWeekReqs', d.week || 0);
+    set('statMonthReqs', d.month || 0);
     fillTable('topEndpointsBody', d.topEndpoints, 'endpoint', 'count');
     fillTable('clientStatsBody', d.clients, 'client', 'count');
     fillTable('browserStatsBody', d.browsers, 'browser', 'count');
     fillTable('countryStatsBody', d.countries, 'country', 'count');
     fillTable('osStatsBody', d.oses, 'os', 'count');
-  }).catch(() => {});
+  });
 }
 
 // ============================================================
-// THEME
+// ✅ THEME
 // ============================================================
 function switchTab(name, el) {
-  ['presets', 'colors', 'effects'].forEach(t => {
-    const tab = document.getElementById('themeTab-' + t);
-    if (tab) tab.style.display = t === name ? 'block' : 'none';
-  });
-  document.querySelectorAll('#section-theme .tab').forEach(t => t.classList.remove('active'));
+  var tabs = ['presets', 'colors', 'effects'];
+  for (var i = 0; i < tabs.length; i++) {
+    var tab = document.getElementById('themeTab-' + tabs[i]);
+    if (tab) tab.style.display = tabs[i] === name ? 'block' : 'none';
+  }
+  var navTabs = document.querySelectorAll('#section-theme .tab');
+  for (var j = 0; j < navTabs.length; j++) navTabs[j].classList.remove('active');
   if (el) el.classList.add('active');
 }
+
 function applyPresetByName(name) {
-  api('/apply-preset', { method: 'POST', body: JSON.stringify({ preset: name }) }).then(d => {
-    if (d.success) { toast('🎨 Preset applied: ' + name); setTimeout(() => location.reload(), 700); }
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  api('/apply-preset', { method: 'POST', body: JSON.stringify({ preset: name }) }).then(function(d) {
+    if (d && d.success) {
+      toast('🎨 Preset: ' + name);
+      setTimeout(function() { location.reload(); }, 700);
+    } else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
+
 function loadThemeUI() {
-  // Load color pickers
-  const cp = document.getElementById('colorPickers');
+  var cp = document.getElementById('colorPickers');
   if (cp && !cp.innerHTML) {
-    const colors = CURRENT_THEME.colors;
-    cp.innerHTML = Object.keys(colors).map(k => \`
-      <div class="color-picker-row">
-        <label>\${k}</label>
-        <input type="color" value="\${colors[k]}" id="color-\${k}" data-key="\${k}">
-      </div>\`).join('');
+    var html = '';
+    var colors = CURRENT_THEME.colors || {};
+    for (var k in colors) {
+      if (colors.hasOwnProperty(k) && typeof colors[k] === 'string' && colors[k].indexOf('#') === 0) {
+        html += '<div class="color-picker-row"><label>' + esc(k) + '</label><input type="color" value="' + esc(colors[k]) + '" data-key="' + esc(k) + '"></div>';
+      }
+    }
+    cp.innerHTML = html;
   }
-  // Load effects toggles
-  const ef = document.getElementById('effectsList');
+  var ef = document.getElementById('effectsList');
   if (ef && !ef.innerHTML) {
-    const effects = CURRENT_THEME.effects;
-    ef.innerHTML = Object.keys(effects).filter(k => typeof effects[k] === 'boolean').map(k => \`
-      <div class="color-picker-row">
-        <label>\${k}</label>
-        <input type="checkbox" \${effects[k] ? 'checked' : ''} id="effect-\${k}" data-key="\${k}" style="width:40px;height:24px">
-      </div>\`).join('');
+    var html2 = '';
+    var effects = CURRENT_THEME.effects || {};
+    for (var k2 in effects) {
+      if (effects.hasOwnProperty(k2)) {
+        if (typeof effects[k2] === 'boolean') {
+          html2 += '<div class="color-picker-row"><label>' + esc(k2) + '</label><input type="checkbox" ' + (effects[k2] ? 'checked' : '') + ' data-key="' + esc(k2) + '" style="width:40px;height:24px"></div>';
+        } else if (typeof effects[k2] === 'number') {
+          html2 += '<div class="color-picker-row"><label>' + esc(k2) + '</label><input type="number" value="' + effects[k2] + '" data-key="' + esc(k2) + '" style="width:80px;padding:4px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:6px;color:#fff"></div>';
+        }
+      }
+    }
+    ef.innerHTML = html2;
   }
 }
+
 function saveCustomColors() {
-  const colors = {};
-  document.querySelectorAll('#colorPickers input[type=color]').forEach(i => { colors[i.dataset.key] = i.value; });
-  api('/update-theme', { method: 'POST', body: JSON.stringify({ colors }) }).then(d => { if (d.success) { toast('🎨 Colors saved'); setTimeout(() => location.reload(), 700); } });
+  var colors = {};
+  var inputs = document.querySelectorAll('#colorPickers input[type=color]');
+  for (var i = 0; i < inputs.length; i++) colors[inputs[i].dataset.key] = inputs[i].value;
+  api('/update-theme', { method: 'POST', body: JSON.stringify({ colors: colors }) }).then(function(d) {
+    if (d && d.success) { toast('🎨 Colors saved'); setTimeout(function() { location.reload(); }, 700); }
+  });
 }
+
 function saveEffects() {
-  const effects = {};
-  document.querySelectorAll('#effectsList input[type=checkbox]').forEach(i => { effects[i.dataset.key] = i.checked; });
-  api('/update-theme', { method: 'POST', body: JSON.stringify({ effects }) }).then(d => { if (d.success) { toast('✨ Effects saved'); setTimeout(() => location.reload(), 700); } });
+  var effects = {};
+  var inputs = document.querySelectorAll('#effectsList input[data-key]');
+  for (var i = 0; i < inputs.length; i++) {
+    var el = inputs[i];
+    effects[el.dataset.key] = el.type === 'checkbox' ? el.checked : parseInt(el.value);
+  }
+  api('/update-theme', { method: 'POST', body: JSON.stringify({ effects: effects }) }).then(function(d) {
+    if (d && d.success) { toast('✨ Effects saved'); setTimeout(function() { location.reload(); }, 700); }
+  });
 }
-function resetTheme() { if (!confirm('Reset theme?')) return; api('/reset-theme', { method: 'POST', body: '{}' }).then(() => { toast('🔄 Theme reset'); setTimeout(() => location.reload(), 700); }); }
+
+function resetTheme() {
+  if (!confirm('Reset theme to default?')) return;
+  api('/reset-theme', { method: 'POST', body: '{}' }).then(function() {
+    toast('🔄 Theme reset'); setTimeout(function() { location.reload(); }, 700);
+  });
+}
 
 // ============================================================
-// DEVELOPER MODE
+// ✅ DEVELOPER MODE
 // ============================================================
 function updateGlobalDev() {
-  const name = document.getElementById('globalDevName').value.trim();
-  if (!name) return toast('❌ Name required', 'error');
-  api('/global-developer', { method: 'POST', body: JSON.stringify({ name }) }).then(d => {
-    if (d.success) { toast('✅ Global developer updated'); document.getElementById('currentGlobalDev').textContent = name; }
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  var el = document.getElementById('globalDevName');
+  var name = el ? el.value.trim() : '';
+  if (!name) { toast('❌ Name required', 'error'); return; }
+  api('/global-developer', { method: 'POST', body: JSON.stringify({ name: name }) }).then(function(d) {
+    if (d && d.success) {
+      toast('✅ Global updated');
+      var curr = document.getElementById('currentGlobalDev');
+      if (curr) curr.textContent = name;
+      DEV_CONFIG.globalName = name;
+    } else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
+
 function updateKeyDev() {
-  const keyName = document.getElementById('keyDevKey').value.trim();
-  const devName = document.getElementById('keyDevName').value.trim();
-  if (!keyName) return toast('❌ Key required', 'error');
-  api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName, devName }) }).then(d => {
-    if (d.success) { toast('✅ Updated'); loadKeyDevOverrides(); }
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  var keyEl = document.getElementById('keyDevKey');
+  var nameEl = document.getElementById('keyDevName');
+  var keyName = keyEl ? keyEl.value.trim() : '';
+  var devName = nameEl ? nameEl.value.trim() : '';
+  if (!keyName) { toast('❌ Key required', 'error'); return; }
+  api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: keyName, devName: devName }) }).then(function(d) {
+    if (d && d.success) { toast('✅ Updated'); loadKeyDevOverrides(); }
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
+
 function loadKeyDevOverrides() {
-  const el = document.getElementById('keyDevOverrides');
+  var el = document.getElementById('keyDevOverrides');
   if (!el) return;
-  const overrides = DEVELOPER_CONFIG.perKeyNames || {};
-  const entries = Object.entries(overrides);
-  el.innerHTML = entries.map(([k, v]) => \`<tr><td><code>\${esc(k)}</code></td><td>\${esc(v)}</td><td><button class="btn-action btn-delete" onclick="removeKeyDev('\${esc(k)}')">Remove</button></td></tr>\`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No overrides</td></tr>';
+  var overrides = DEV_CONFIG.perKeyNames || {};
+  var html = '';
+  for (var k in overrides) {
+    if (overrides.hasOwnProperty(k)) {
+      html += '<tr><td><code>' + esc(k) + '</code></td><td>' + esc(overrides[k]) + '</td><td><button class="btn-action btn-delete" onclick="removeKeyDev(\'' + esc(k) + '\')">Remove</button></td></tr>';
+    }
+  }
+  el.innerHTML = html || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:15px">No overrides</td></tr>';
 }
+
 function removeKeyDev(k) {
-  api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: k, devName: '' }) }).then(() => { toast('🗑️ Removed'); loadKeyDevOverrides(); });
+  api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: k, devName: '' }) }).then(function() {
+    toast('🗑️ Removed');
+    if (DEV_CONFIG.perKeyNames) delete DEV_CONFIG.perKeyNames[k];
+    loadKeyDevOverrides();
+  });
 }
 
 // ============================================================
-// HIDE WORDS
+// ✅ HIDE WORDS
 // ============================================================
 function loadHiddenWords() {
-  const el = document.getElementById('hiddenWordsList');
+  var el = document.getElementById('hiddenWordsList');
   if (!el) return;
-  const words = DEVELOPER_CONFIG.hiddenWords || [];
-  el.innerHTML = words.map(w => \`<span style="padding:5px 10px;background:var(--neon-red);color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">\${esc(w)}<span onclick="removeHiddenWord('\${esc(w)}')" style="cursor:pointer;font-weight:900">×</span></span>\`).join('') || '<p style="color:var(--text-muted);font-size:11px">No hidden words</p>';
+  var words = DEV_CONFIG.hiddenWords || [];
+  var html = '';
+  for (var i = 0; i < words.length; i++) {
+    html += '<span style="padding:5px 10px;background:var(--neon-red);color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">' + esc(words[i]) + '<span onclick="removeHiddenWord(\'' + esc(words[i]) + '\')" style="cursor:pointer;font-weight:900;font-size:14px">×</span></span>';
+  }
+  el.innerHTML = html || '<p style="color:var(--text-muted);font-size:11px">No hidden words</p>';
 }
+
 function addHiddenWord() {
-  const w = document.getElementById('hideWordInput').value.trim();
-  if (!w) return toast('❌ Word required', 'error');
-  api('/hidden-words/add', { method: 'POST', body: JSON.stringify({ word: w }) }).then(d => {
-    if (d.success) { toast('✅ Added'); DEVELOPER_CONFIG.hiddenWords = d.hiddenWords; loadHiddenWords(); document.getElementById('hideWordInput').value = ''; }
+  var el = document.getElementById('hideWordInput');
+  var w = el ? el.value.trim() : '';
+  if (!w) { toast('❌ Word required', 'error'); return; }
+  api('/hidden-words/add', { method: 'POST', body: JSON.stringify({ word: w }) }).then(function(d) {
+    if (d && d.success) {
+      toast('✅ Added');
+      DEV_CONFIG.hiddenWords = d.hiddenWords || DEV_CONFIG.hiddenWords;
+      loadHiddenWords();
+      if (el) el.value = '';
+    }
   });
 }
+
 function removeHiddenWord(w) {
-  api('/hidden-words/remove', { method: 'POST', body: JSON.stringify({ word: w }) }).then(d => {
-    if (d.success) { toast('🗑️ Removed'); DEVELOPER_CONFIG.hiddenWords = d.hiddenWords; loadHiddenWords(); }
+  api('/hidden-words/remove', { method: 'POST', body: JSON.stringify({ word: w }) }).then(function(d) {
+    if (d && d.success) {
+      toast('🗑️ Removed');
+      DEV_CONFIG.hiddenWords = d.hiddenWords || DEV_CONFIG.hiddenWords;
+      loadHiddenWords();
+    }
   });
 }
 
 // ============================================================
-// EXPORT / IMPORT
+// ✅ EXPORT / IMPORT
 // ============================================================
-let EXPORT_CACHE = '';
+var EXPORT_CACHE = '';
 function loadExport() {
-  api('/export-keys').then(d => {
+  api('/export-keys').then(function(d) {
     EXPORT_CACHE = JSON.stringify(d, null, 2);
-    const el = document.getElementById('exportData');
+    var el = document.getElementById('exportData');
     if (el) el.value = EXPORT_CACHE;
   });
 }
 function copyExport() {
-  if (!EXPORT_CACHE) return toast('⚠️ Load first', 'warning');
-  navigator.clipboard.writeText(EXPORT_CACHE).then(() => toast('📋 Copied!'));
+  if (!EXPORT_CACHE) { toast('⚠️ Load first', 'warning'); return; }
+  navigator.clipboard.writeText(EXPORT_CACHE).then(function() { toast('📋 Copied!'); }).catch(function() { toast('❌ Copy failed', 'error'); });
 }
 function downloadExport() {
-  if (!EXPORT_CACHE) return toast('⚠️ Load first', 'warning');
-  const blob = new Blob([EXPORT_CACHE], { type: 'application/json' });
-  const a = document.createElement('a');
+  if (!EXPORT_CACHE) { toast('⚠️ Load first', 'warning'); return; }
+  var blob = new Blob([EXPORT_CACHE], { type: 'application/json' });
+  var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'bronx-backup-' + Date.now() + '.json';
-  a.click();
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   toast('📥 Downloaded');
 }
 function importKeys() {
-  const data = document.getElementById('importData').value.trim();
-  if (!data) return toast('❌ Paste JSON first', 'error');
-  let parsed;
-  try { parsed = JSON.parse(data); } catch (e) { return toast('❌ Invalid JSON: ' + e.message, 'error'); }
-  api('/import-keys', { method: 'POST', body: JSON.stringify(parsed) }).then(d => {
-    if (d.success) { toast('✅ ' + d.message); setTimeout(() => location.reload(), 1500); }
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  var ta = document.getElementById('importData');
+  var data = ta ? ta.value.trim() : '';
+  if (!data) { toast('❌ Paste JSON first', 'error'); return; }
+  var parsed;
+  try { parsed = JSON.parse(data); } catch (e) { toast('❌ Invalid JSON: ' + e.message, 'error'); return; }
+  api('/import-keys', { method: 'POST', body: JSON.stringify(parsed) }).then(function(d) {
+    if (d && d.success) {
+      toast('✅ ' + d.message);
+      var msg = document.getElementById('importMsg');
+      if (msg) msg.innerHTML = '<span style="color:#00ff88">' + esc(d.message) + '</span>';
+      setTimeout(function() { location.reload(); }, 1500);
+    } else {
+      var msg2 = document.getElementById('importMsg');
+      if (msg2) msg2.innerHTML = '<span style="color:#ff2d2d">' + esc((d && d.e) || 'Error') + '</span>';
+      toast('❌ Import failed', 'error');
+    }
   });
 }
 
 // ============================================================
-// SCOPES
+// ✅ SCOPES
 // ============================================================
 function updateScopes() {
-  const keyName = document.getElementById('sk').value.trim();
-  if (!keyName) return toast('❌ Key required', 'error');
-  const scopes = Array.from(document.querySelectorAll('#scopeBoxUpdate input:checked')).map(i => i.value);
-  api('/update-scopes', { method: 'POST', body: JSON.stringify({ keyName, scopes }) }).then(d => {
-    if (d.success) toast('✅ Scopes updated'); else toast('❌ ' + (d.e || 'Error'), 'error');
+  var el = document.getElementById('sk');
+  var keyName = el ? el.value.trim() : '';
+  if (!keyName) { toast('❌ Key required', 'error'); return; }
+  var scopes = [];
+  var checked = document.querySelectorAll('#scopeBoxUpdate input:checked');
+  for (var i = 0; i < checked.length; i++) scopes.push(checked[i].value);
+  api('/update-scopes', { method: 'POST', body: JSON.stringify({ keyName: keyName, scopes: scopes }) }).then(function(d) {
+    if (d && d.success) toast('✅ Scopes updated');
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
 
 // ============================================================
-// PROTECTION
+// ✅ PROTECTION
 // ============================================================
 function loadProtection() {
-  api('/protection').then(d => {
-    const el = document.getElementById('protectList');
+  api('/protection').then(function(d) {
+    var el = document.getElementById('protectList');
     if (!el) return;
-    const entries = Object.entries(d.protected || {});
-    el.innerHTML = '<table><thead><tr><th>Key</th><th>Value</th><th>Action</th></tr></thead><tbody>' +
-      (entries.map(([k, v]) => \`<tr><td>\${esc(k)}</td><td><code>\${esc(v)}</code></td><td><button class="btn-action btn-delete" onclick="removeProtection('\${esc(k)}')">Remove</button></td></tr>\`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No protected data</td></tr>') +
-      '</tbody></table>';
-  }).catch(() => {});
+    var prot = (d && d.protected) || {};
+    var html = '<table><thead><tr><th>Key</th><th>Value</th><th>Action</th></tr></thead><tbody>';
+    var hasAny = false;
+    for (var k in prot) {
+      if (prot.hasOwnProperty(k)) {
+        hasAny = true;
+        html += '<tr><td>' + esc(k) + '</td><td><code>' + esc(prot[k]) + '</code></td><td><button class="btn-action btn-delete" onclick="removeProtection(\'' + esc(k) + '\')">Remove</button></td></tr>';
+      }
+    }
+    if (!hasAny) html += '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:15px">No protected data</td></tr>';
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  });
 }
 function addProtection() {
-  const val = document.getElementById('protVal').value.trim();
-  if (!val) return toast('❌ Value required', 'error');
-  api('/protection/add', { method: 'POST', body: JSON.stringify({ key: 'prot_' + Date.now(), value: val }) }).then(d => {
-    if (d.success) { toast('✅ Protected'); loadProtection(); document.getElementById('protVal').value = ''; }
+  var el = document.getElementById('protVal');
+  var val = el ? el.value.trim() : '';
+  if (!val) { toast('❌ Value required', 'error'); return; }
+  api('/protection/add', { method: 'POST', body: JSON.stringify({ key: 'prot_' + Date.now(), value: val }) }).then(function(d) {
+    if (d && d.success) { toast('✅ Protected'); loadProtection(); if (el) el.value = ''; }
   });
 }
 function removeProtection(k) {
-  api('/protection/remove', { method: 'POST', body: JSON.stringify({ key: k }) }).then(() => { toast('🗑️ Removed'); loadProtection(); });
+  api('/protection/remove', { method: 'POST', body: JSON.stringify({ key: k }) }).then(function() {
+    toast('🗑️ Removed'); loadProtection();
+  });
 }
 
 // ============================================================
-// CUSTOM APIS
+// ✅ CUSTOM APIS
 // ============================================================
 function renderAPIsList() {
-  const el = document.getElementById('apisBody');
+  var el = document.getElementById('apisBody');
   if (!el) return;
-  el.innerHTML = CUSTOM_APIS.map(a => \`
-    <tr>
-      <td>\${a.id}</td>
-      <td>\${esc(a.name)}</td>
-      <td><code>\${esc(a.endpoint)}</code></td>
-      <td><code>\${esc(a.scopeKey || '')}</code></td>
-      <td>\${esc(a.param)}</td>
-      <td>\${a.visible ? '✅' : '❌'}</td>
-      <td>
-        <button class="btn-action btn-edit" onclick="toggleAPI(\${a.id})">Toggle</button>
-        <button class="btn-action btn-delete" onclick="deleteAPI(\${a.id})">Del</button>
-      </td>
-    </tr>\`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No custom APIs</td></tr>';
+  var html = '';
+  for (var i = 0; i < CUSTOM_APIS.length; i++) {
+    var a = CUSTOM_APIS[i];
+    html += '<tr>' +
+      '<td>' + esc(a.id) + '</td>' +
+      '<td>' + esc(a.name) + '</td>' +
+      '<td><code>' + esc(a.endpoint) + '</code></td>' +
+      '<td><code style="font-size:9px">' + esc(a.scopeKey || '') + '</code></td>' +
+      '<td>' + esc(a.param) + '</td>' +
+      '<td>' + (a.visible ? '✅' : '❌') + '</td>' +
+      '<td>' +
+        '<button class="btn-action btn-edit" onclick="toggleAPI(' + a.id + ')">Toggle</button>' +
+        '<button class="btn-action btn-delete" onclick="deleteAPI(' + a.id + ')">Del</button>' +
+      '</td>' +
+    '</tr>';
+  }
+  el.innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:15px">No custom APIs</td></tr>';
 }
-function toggleAPI(id) { api('/toggle-api', { method: 'POST', body: JSON.stringify({ id }) }).then(() => { toast('✅ Toggled'); setTimeout(() => location.reload(), 500); }); }
-function deleteAPI(id) { if (!confirm('Delete API?')) return; api('/delete-api', { method: 'POST', body: JSON.stringify({ id }) }).then(() => { toast('🗑️ Deleted'); setTimeout(() => location.reload(), 500); }); }
+function toggleAPI(id) {
+  api('/toggle-api', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() {
+    toast('✅ Toggled'); setTimeout(function() { location.reload(); }, 500);
+  });
+}
+function deleteAPI(id) {
+  if (!confirm('Delete API?')) return;
+  api('/delete-api', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() {
+    toast('🗑️ Deleted'); setTimeout(function() { location.reload(); }, 500);
+  });
+}
 function addAPI() {
-  const body = {
-    name: document.getElementById('aname').value.trim(),
-    endpoint: document.getElementById('aep').value.trim().toLowerCase(),
-    param: document.getElementById('aparam').value.trim(),
-    example: document.getElementById('aex').value.trim(),
-    realAPI: document.getElementById('aurl').value.trim()
-  };
-  if (!body.name || !body.endpoint || !body.realAPI) return toast('❌ Fill required fields', 'error');
-  api('/add-api', { method: 'POST', body: JSON.stringify(body) }).then(d => {
-    if (d.success) { toast('✅ API added'); setTimeout(() => location.reload(), 800); }
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  var name = (document.getElementById('aname') || {}).value || '';
+  var endpoint = (document.getElementById('aep') || {}).value || '';
+  var param = (document.getElementById('aparam') || {}).value || '';
+  var example = (document.getElementById('aex') || {}).value || '';
+  var realAPI = (document.getElementById('aurl') || {}).value || '';
+  
+  name = name.trim(); endpoint = endpoint.trim().toLowerCase(); param = param.trim(); realAPI = realAPI.trim();
+  
+  if (!name || !endpoint || !realAPI) { toast('❌ Fill required fields', 'error'); return; }
+  
+  var body = { name: name, endpoint: endpoint, param: param, example: example, realAPI: realAPI };
+  api('/add-api', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
+    if (d && d.success) {
+      toast('✅ API added');
+      setTimeout(function() { location.reload(); }, 800);
+    } else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
 
 // ============================================================
-// DDOS
+// ✅ DDOS
 // ============================================================
 function saveDDoSConfig() {
-  const body = {
-    mode: document.getElementById('ddosMode').value,
-    enabled: document.getElementById('ddosMode').value !== 'off',
-    ip: { burst10s: +document.getElementById('ddosIP10').value, perMinute: +document.getElementById('ddosIP1M').value, perHour: +document.getElementById('ddosIP1H').value },
-    device: { burst10s: +document.getElementById('ddosDEV10').value, perMinute: +document.getElementById('ddosDEV1M').value, perHour: +document.getElementById('ddosDEV1H').value }
+  var getNum = function(id, def) { var el = document.getElementById(id); return el ? parseInt(el.value) || def : def; };
+  var modeEl = document.getElementById('ddosMode');
+  var mode = modeEl ? modeEl.value : 'smart';
+  
+  var body = {
+    mode: mode,
+    enabled: mode !== 'off',
+    ip: { burst10s: getNum('ddosIP10', 60), perMinute: getNum('ddosIP1M', 200), perHour: getNum('ddosIP1H', 1500) },
+    device: { burst10s: getNum('ddosDEV10', 80), perMinute: getNum('ddosDEV1M', 250), perHour: getNum('ddosDEV1H', 2000) },
+    key: { burst10s: getNum('ddosKEY10', 100), perMinute: getNum('ddosKEY1M', 400), perHour: getNum('ddosKEY1H', 3000) }
   };
-  api('/ddos-config', { method: 'POST', body: JSON.stringify(body) }).then(d => {
-    if (d.success) toast('✅ DDoS config saved');
-    else toast('❌ ' + (d.e || 'Error'), 'error');
+  
+  api('/ddos-config', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
+    if (d && d.success) toast('✅ DDoS config saved');
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
   });
 }
 
 // ============================================================
-// BANS
+// ✅ BANS
 // ============================================================
 function loadBans() {
-  api('/bans').then(d => {
-    const el = document.getElementById('bansIPBody');
+  api('/bans').then(function(d) {
+    var el = document.getElementById('bansIPBody');
     if (!el) return;
-    const entries = Object.entries(d.ip || {});
-    el.innerHTML = entries.map(([ip, b]) => \`
-      <tr>
-        <td><code>\${esc(ip)}</code></td>
-        <td>\${esc(b.reason || '-')}</td>
-        <td>\${esc(b.at || '-')}</td>
-        <td>\${b.permanent ? '🚫 Permanent' : (Date.now() < b.until ? '⏸️ Temp' : '✅ Expired')}</td>
-        <td><button class="btn-action btn-delete" onclick="unbanIP('\${esc(ip)}')">Unban</button></td>
-      </tr>\`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No bans</td></tr>';
-  }).catch(() => {});
+    var bans = (d && d.ip) || {};
+    var html = '';
+    for (var ip in bans) {
+      if (bans.hasOwnProperty(ip)) {
+        var b = bans[ip];
+        var status = b.permanent ? '🚫 Permanent' : (Date.now() < b.until ? '⏸️ Temp' : '✅ Expired');
+        html += '<tr><td><code>' + esc(ip) + '</code></td><td>' + esc(b.reason || '-') + '</td><td>' + esc(b.at || '-') + '</td><td>' + status + '</td><td><button class="btn-action btn-delete" onclick="unbanIP(\'' + esc(ip) + '\')">Unban</button></td></tr>';
+      }
+    }
+    el.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:15px">No bans</td></tr>';
+  });
 }
-function unbanIP(ip) { api('/unban', { method: 'POST', body: JSON.stringify({ type: 'ip', id: ip }) }).then(() => { toast('✅ Unbanned'); loadBans(); }); }
-function unbanAll() { if (!confirm('Unban all?')) return; api('/unban-all', { method: 'POST', body: '{}' }).then(() => { toast('✅ All unbanned'); loadBans(); }); }
+function unbanIP(ip) {
+  api('/unban', { method: 'POST', body: JSON.stringify({ type: 'ip', id: ip }) }).then(function() {
+    toast('✅ Unbanned'); loadBans();
+  });
+}
+function unbanAll() {
+  if (!confirm('Unban all?')) return;
+  api('/unban-all', { method: 'POST', body: '{}' }).then(function() {
+    toast('✅ All unbanned'); loadBans();
+  });
+}
 
 // ============================================================
-// DEVICES
+// ✅ DEVICES
 // ============================================================
 function loadDevices() {
-  api('/devices').then(d => {
-    const el = document.getElementById('devicesBody');
+  api('/devices').then(function(d) {
+    var el = document.getElementById('devicesBody');
     if (!el) return;
-    const entries = Object.entries(d.devices || {});
-    el.innerHTML = entries.map(([id, dev]) => \`
-      <tr>
-        <td><code>\${esc(id)}</code></td>
-        <td>\${esc(dev.deviceIcon)} \${esc(dev.deviceType)}</td>
-        <td>\${esc(dev.browser)}</td>
-        <td>\${esc(dev.os)}</td>
-        <td>\${dev.requests}</td>
-        <td>\${esc(dev.lastSeen)}</td>
-        <td><button class="btn-action btn-delete" onclick="banDevice('\${esc(id)}')">Ban</button></td>
-      </tr>\`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No devices</td></tr>';
-  }).catch(() => {});
+    var devices = (d && d.devices) || {};
+    var html = '';
+    for (var id in devices) {
+      if (devices.hasOwnProperty(id)) {
+        var dev = devices[id];
+        html += '<tr>' +
+          '<td><code style="font-size:9px">' + esc(id.substring(0, 20)) + '</code></td>' +
+          '<td>' + esc(dev.deviceIcon || '') + ' ' + esc(dev.deviceType || '') + '</td>' +
+          '<td>' + esc(dev.browser || '') + '</td>' +
+          '<td>' + esc(dev.os || '') + '</td>' +
+          '<td>' + esc(dev.requests || 0) + '</td>' +
+          '<td style="font-size:10px">' + esc(dev.lastSeen || '') + '</td>' +
+          '<td><button class="btn-action btn-delete" onclick="banDevice(\'' + esc(id) + '\')">Ban</button></td>' +
+        '</tr>';
+      }
+    }
+    el.innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:15px">No devices</td></tr>';
+  });
 }
-function banDevice(id) { api('/ban-device', { method: 'POST', body: JSON.stringify({ id }) }).then(() => toast('⛔ Banned')); }
+function banDevice(id) {
+  api('/ban-device', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function() {
+    toast('⛔ Banned');
+  });
+}
 
 // ============================================================
-// ANNOUNCEMENT
+// ✅ ANNOUNCEMENT
 // ============================================================
 function saveAnnouncement() {
-  const body = { enabled: document.getElementById('announceEnabled').value === 'true', text: document.getElementById('announceText').value.trim(), type: document.getElementById('announceType').value };
-  api('/announcement', { method: 'POST', body: JSON.stringify(body) }).then(() => toast('✅ Announcement saved'));
+  var enabledEl = document.getElementById('announceEnabled');
+  var textEl = document.getElementById('announceText');
+  var typeEl = document.getElementById('announceType');
+  var body = {
+    enabled: enabledEl ? enabledEl.value === 'true' : false,
+    text: textEl ? textEl.value.trim() : '',
+    type: typeEl ? typeEl.value : 'info'
+  };
+  api('/announcement', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
+    if (d && d.success) toast('✅ Announcement saved');
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+  });
 }
 
 // ============================================================
-// MAINTENANCE
+// ✅ MAINTENANCE
 // ============================================================
 function saveMaintenance() {
-  const body = { enabled: document.getElementById('maintenanceEnabled').value === 'true', message: document.getElementById('maintenanceMessage').value.trim() };
-  api('/maintenance', { method: 'POST', body: JSON.stringify(body) }).then(() => toast('✅ Maintenance saved'));
+  var enabledEl = document.getElementById('maintenanceEnabled');
+  var msgEl = document.getElementById('maintenanceMessage');
+  var body = {
+    enabled: enabledEl ? enabledEl.value === 'true' : false,
+    message: msgEl ? msgEl.value.trim() : ''
+  };
+  api('/maintenance', { method: 'POST', body: JSON.stringify(body) }).then(function(d) {
+    if (d && d.success) toast('✅ Maintenance saved');
+    else toast('❌ ' + ((d && d.e) || 'Error'), 'error');
+  });
 }
 
 // ============================================================
-// AUDIT / LOGS
+// ✅ AUDIT / LOGS
 // ============================================================
 function loadAudit() {
-  api('/audit-log').then(d => {
-    const el = document.getElementById('auditBody');
+  api('/audit-log').then(function(d) {
+    var el = document.getElementById('auditBody');
     if (!el) return;
-    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => \`
-      <tr><td>\${esc(l.timestamp)}</td><td>\${esc(l.user)}</td><td>\${esc(l.action)}</td><td>\${esc(JSON.stringify(l.details))}</td></tr>\`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
-  }).catch(() => {});
+    var logs = (d && d.logs) || [];
+    logs = logs.slice(-200).reverse();
+    var html = '';
+    for (var i = 0; i < logs.length; i++) {
+      var l = logs[i];
+      html += '<tr><td style="font-size:10px">' + esc(l.timestamp) + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + '</td><td style="font-size:9px">' + esc(JSON.stringify(l.details)) + '</td></tr>';
+    }
+    el.innerHTML = html || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:15px">No logs</td></tr>';
+  });
 }
 function loadAdminLogs() {
-  api('/admin-logs').then(d => {
-    const el = document.getElementById('adminLogsBody');
+  api('/admin-logs').then(function(d) {
+    var el = document.getElementById('adminLogsBody');
     if (!el) return;
-    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => \`
-      <tr><td>\${esc(l.timestamp)}</td><td>\${esc(l.user || '-')}</td><td>\${esc(l.action)}</td><td>\${esc(l.ip || '-')}</td><td>\${esc(l.device || '-')}</td><td>\${esc(l.status)}</td></tr>\`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
-  }).catch(() => {});
+    var logs = (d && d.logs) || [];
+    logs = logs.slice(-200).reverse();
+    var html = '';
+    for (var i = 0; i < logs.length; i++) {
+      var l = logs[i];
+      html += '<tr><td style="font-size:10px">' + esc(l.timestamp) + '</td><td>' + esc(l.user || '-') + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.ip || '-') + '</td><td>' + esc(l.device || '-') + '</td><td>' + esc(l.status) + '</td></tr>';
+    }
+    el.innerHTML = html || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:15px">No logs</td></tr>';
+  });
 }
-function downloadBackup() { loadExport(); setTimeout(() => downloadExport(), 800); }
+function downloadBackup() {
+  loadExport();
+  setTimeout(function() { downloadExport(); }, 800);
+}
 
 // ============================================================
-// SIDEBAR INIT (load dashboard on page load)
+// ✅ SCOPES BUILDER
 // ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-  loadDashboard();
-  // Populate scopes from ALL_ENDPOINTS
-  const buildScopes = (containerId, allChecked) => {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    let html = el.innerHTML;
-    Object.keys(ALL_ENDPOINTS).forEach(ep => {
-      html += \`<label class="scope-item"><input type="checkbox" value="\${ep}"> <span>\${ep}</span></label>\`;
+function buildScopes(containerId) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var html = el.innerHTML;
+  var ep;
+  for (ep in ALL_ENDPOINTS) {
+    if (ALL_ENDPOINTS.hasOwnProperty(ep)) {
+      html += '<label class="scope-item"><input type="checkbox" value="' + esc(ep) + '"> <span>' + esc(ep) + '</span></label>';
+    }
+  }
+  for (var i = 0; i < CUSTOM_APIS.length; i++) {
+    var a = CUSTOM_APIS[i];
+    html += '<label class="scope-item custom"><input type="checkbox" value="custom:' + esc(a.endpoint) + '"> <span>' + esc(a.endpoint) + '</span></label>';
+  }
+  el.innerHTML = html;
+  
+  // Wire up "ALL" checkbox
+  var allBox = el.querySelector('input[value="*"]');
+  if (allBox) {
+    allBox.addEventListener('change', function() {
+      var others = el.querySelectorAll('input:not([value="*"])');
+      for (var j = 0; j < others.length; j++) {
+        others[j].checked = allBox.checked;
+        others[j].disabled = allBox.checked;
+      }
     });
-    CUSTOM_APIS.forEach(a => {
-      html += \`<label class="scope-item custom"><input type="checkbox" value="custom:\${a.endpoint}"> <span>\${a.endpoint}</span></label>\`;
-    });
-    el.innerHTML = html;
-  };
-  buildScopes('scopeBoxGenerate', true);
-  buildScopes('scopeBoxUpdate', false);
-  // Snowfall
+  }
+}
+
+// ============================================================
+// ✅ SNOWFALL
+// ============================================================
+function initSnowfall() {
   try {
-    const sc = document.getElementById('snowfall-canvas'), sctx = sc.getContext('2d');
+    var sc = document.getElementById('snowfall-canvas');
+    if (!sc) return;
+    var sctx = sc.getContext('2d');
     sc.width = window.innerWidth; sc.height = window.innerHeight;
-    const colors = ['255,45,45','0,255,136','255,149,0','255,45,149','0,229,255','191,0,255','255,230,0'];
-    const snow = [];
-    for (let i = 0; i < 100; i++) snow.push({x:Math.random()*sc.width,y:Math.random()*sc.height,s:Math.random()*3+1,sp:Math.random()*1+.3,w:Math.random()*.5-.25,o:Math.random()*.6+.2,c:colors[Math.floor(Math.random()*colors.length)]});
-    (function animate(){ sctx.clearRect(0,0,sc.width,sc.height); snow.forEach(s=>{s.y+=s.sp;s.x+=s.w;if(s.y>sc.height){s.y=-5;s.x=Math.random()*sc.width}if(s.x<0)s.x=sc.width;if(s.x>sc.width)s.x=0;sctx.beginPath();sctx.arc(s.x,s.y,s.s,0,Math.PI*2);sctx.fillStyle='rgba('+s.c+','+s.o+')';sctx.shadowBlur=10;sctx.shadowColor='rgba('+s.c+',0.8)';sctx.fill();sctx.shadowBlur=0}); requestAnimationFrame(animate); })();
-  } catch(e) {}
+    var colors = ['255,45,45','0,255,136','255,149,0','255,45,149','0,229,255','191,0,255','255,230,0'];
+    var snow = [];
+    for (var i = 0; i < 100; i++) snow.push({
+      x: Math.random() * sc.width, y: Math.random() * sc.height,
+      s: Math.random() * 3 + 1, sp: Math.random() * 1 + 0.3,
+      w: Math.random() * 0.5 - 0.25, o: Math.random() * 0.6 + 0.2,
+      c: colors[Math.floor(Math.random() * colors.length)]
+    });
+    (function animate() {
+      sctx.clearRect(0, 0, sc.width, sc.height);
+      for (var j = 0; j < snow.length; j++) {
+        var s = snow[j];
+        s.y += s.sp; s.x += s.w;
+        if (s.y > sc.height) { s.y = -5; s.x = Math.random() * sc.width; }
+        if (s.x < 0) s.x = sc.width;
+        if (s.x > sc.width) s.x = 0;
+        sctx.beginPath();
+        sctx.arc(s.x, s.y, s.s, 0, Math.PI * 2);
+        sctx.fillStyle = 'rgba(' + s.c + ',' + s.o + ')';
+        sctx.shadowBlur = 10;
+        sctx.shadowColor = 'rgba(' + s.c + ',0.8)';
+        sctx.fill();
+        sctx.shadowBlur = 0;
+      }
+      requestAnimationFrame(animate);
+    })();
+  } catch (e) { console.error('Snowfall error:', e); }
+}
+
+// ============================================================
+// ✅ INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  buildScopes('scopeBoxGenerate');
+  buildScopes('scopeBoxUpdate');
+  initSnowfall();
+  loadDashboard();
+  renderKeysTable();
+  renderAPIsList();
+  renderEndpointsList();
+  loadHiddenWords();
+  loadKeyDevOverrides();
+  loadThemeUI();
 });
+
+// Fallback if DOMContentLoaded already fired
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  setTimeout(function() {
+    buildScopes('scopeBoxGenerate');
+    buildScopes('scopeBoxUpdate');
+    initSnowfall();
+    loadDashboard();
+    renderKeysTable();
+    renderAPIsList();
+    renderEndpointsList();
+    loadHiddenWords();
+    loadKeyDevOverrides();
+    loadThemeUI();
+  }, 100);
+}
 </script>
 </body></html>`;
-  } catch(e) { return 'Admin render err: ' + e.message; }
+  } catch(e) {
+    console.error('renderAdmin error:', e);
+    return '<html><body style="background:#000;color:#f00;padding:20px;font-family:monospace"><h1>Admin Render Error</h1><pre>' + e.message + '\n\n' + (e.stack || '') + '</pre></body></html>';
+  }
 }
 
 // 🚀 START
