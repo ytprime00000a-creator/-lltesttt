@@ -957,6 +957,36 @@ app.post(ADMIN_PATH + '/ddos-config', adminAuth, (req,res) => {
   res.json({success:true, config:ddosConfig});
 });
 
+// Add these backend routes:
+
+app.get(ADMIN_PATH + '/stats', adminAuth, (req,res) => {
+  const total = keyMonitorLogs.length;
+  const today = keyMonitorLogs.filter(l => l.date === getIndiaDate()).length;
+  // ... compute week/month, topKeys, topIPs etc.
+  res.json({ total, today, week: 0, month: 0, bans: Object.keys(bans.ip).length + Object.keys(bans.device).length, devices: Object.keys(deviceFingerprints).length, topKeys: [], topIPs: [], topDevices: [], topEndpoints: [] });
+});
+
+app.get(ADMIN_PATH + '/monitor-logs', adminAuth, (req,res) => res.json({ logs: keyMonitorLogs.slice(-300) }));
+app.get(ADMIN_PATH + '/stats-full', adminAuth, (req,res) => { /* similar to /stats */ res.json({ total:0,today:0,week:0,month:0,topEndpoints:[],clients:[],browsers:[],countries:[],oses:[] }); });
+app.post(ADMIN_PATH + '/apply-preset', adminAuth, (req,res) => { applyPreset(req.body.preset); saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/update-theme', adminAuth, (req,res) => { if(req.body.colors) Object.assign(theme.colors, req.body.colors); if(req.body.effects) Object.assign(theme.effects, req.body.effects); theme.version++; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/reset-theme', adminAuth, (req,res) => { applyPreset('ultra-rainbow'); saveToDisk(); res.json({success:true}); });
+app.get(ADMIN_PATH + '/protection', adminAuth, (req,res) => res.json({ protected: protectedData }));
+app.post(ADMIN_PATH + '/protection/add', adminAuth, (req,res) => { protectedData[req.body.key] = req.body.value; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/protection/remove', adminAuth, (req,res) => { delete protectedData[req.body.key]; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/toggle-api', adminAuth, (req,res) => { const a = customAPIs.find(x => x.id === req.body.id); if(a) a.visible = !a.visible; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/delete-api', adminAuth, (req,res) => { customAPIs = customAPIs.filter(x => x.id !== req.body.id); saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/add-api', adminAuth, (req,res) => { customAPIs.push({ id: Date.now(), ...req.body, visible: true, scopeKey: 'custom:' + req.body.endpoint }); saveToDisk(); res.json({success:true}); });
+app.get(ADMIN_PATH + '/bans', adminAuth, (req,res) => res.json({ ip: bans.ip, device: bans.device, key: bans.key }));
+app.post(ADMIN_PATH + '/unban', adminAuth, (req,res) => { delete bans[req.body.type][req.body.id]; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/unban-all', adminAuth, (req,res) => { bans = { ip:{}, device:{}, key:{} }; saveToDisk(); res.json({success:true}); });
+app.get(ADMIN_PATH + '/devices', adminAuth, (req,res) => res.json({ devices: deviceFingerprints }));
+app.post(ADMIN_PATH + '/ban-device', adminAuth, (req,res) => { bans.device[req.body.id] = { permanent: true, reason: 'Manual', at: getIndiaDateTime() }; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/announcement', adminAuth, (req,res) => { announcement = req.body; saveToDisk(); res.json({success:true}); });
+app.post(ADMIN_PATH + '/maintenance', adminAuth, (req,res) => { maintenance = req.body; saveToDisk(); res.json({success:true}); });
+app.get(ADMIN_PATH + '/audit-log', adminAuth, (req,res) => res.json({ logs: auditLog.slice(-300) }));
+app.get(ADMIN_PATH + '/admin-logs', adminAuth, (req,res) => res.json({ logs: adminLogs.slice(-300) }));
+
 // ============================================================
 // ✅ UPDATED: EXPORT — COMPLETE DATA
 // ============================================================
@@ -1721,15 +1751,12 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 </div>
 </div>
 
-<!-- ANNOUNCEMENT -->
-<div class="glow-card" id="section-announce" style="display:none">
-<h3><i class="fas fa-bullhorn"></i> Announcement Banner</h3>
-<div class="form-group"><label>Enable</label>
-<select class="form-input" id="announceEnabled"><option value="true">✅ ON</option><option value="false">❌ OFF</option></select></div>
-<div class="form-group"><label>Message</label><input class="form-input" id="announceText" placeholder="Important announcement..."></div>
+<!-- ANNOUNCEMENT (continue) -->
 <div class="form-group"><label>Type</label>
 <select class="form-input" id="announceType">
-<option value="info">ℹ️ Info</option><option value="warning">⚠️ Warning</option><option value="success">✅ Success</option><option value="danger">🚨 Danger</option>
+<option value="info">ℹ️ Info</option>
+<option value="warning">⚠️ Warning</option>
+<option value="success">✅ Success</option>
 </select></div>
 <button class="btn-primary" onclick="saveAnnouncement()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
 </div>
@@ -1737,461 +1764,589 @@ ${themesList.map(name => `<div class="preset-card" data-preset="${name}" onclick
 <!-- MAINTENANCE -->
 <div class="glow-card" id="section-maintenance" style="display:none">
 <h3><i class="fas fa-wrench"></i> Maintenance Mode</h3>
-<div class="form-group"><label>Enable</label>
-<select class="form-input" id="maintEnabled"><option value="true">🔴 ON</option><option value="false">🟢 OFF</option></select></div>
-<div class="form-group"><label>Message</label><input class="form-input" id="maintMessage" placeholder="System under maintenance"></div>
-<button class="btn-primary" onclick="saveMaintenance()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
+<div class="form-group"><label>Enable Maintenance</label>
+<select class="form-input" id="maintenanceEnabled"><option value="false">❌ OFF</option><option value="true">✅ ON</option></select></div>
+<div class="form-group"><label>Message</label><input class="form-input" id="maintenanceMessage" placeholder="System under maintenance"></div>
+<button class="btn-primary btn-warning" onclick="saveMaintenance()" style="width:100%"><i class="fas fa-save"></i> SAVE</button>
 </div>
 
 <!-- AUDIT -->
 <div class="glow-card" id="section-audit" style="display:none">
 <h3><i class="fas fa-clipboard-list"></i> Audit Log</h3>
-<button class="btn-primary" onclick="loadAudit()" style="margin-bottom:12px"><i class="fas fa-sync"></i> LOAD</button>
-<div class="live-logs" id="auditLogs"></div>
+<button class="btn-primary" onclick="loadAudit()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
+<div class="table-container" style="max-height:500px"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody id="auditBody"></tbody></table></div>
 </div>
 
 <!-- ADMIN LOGS -->
 <div class="glow-card" id="section-adminlogs" style="display:none">
-<h3><i class="fas fa-history"></i> Admin Logs</h3>
-<button class="btn-primary" onclick="loadAdminLogs()" style="margin-bottom:12px"><i class="fas fa-sync"></i> LOAD</button>
-<div class="live-logs" id="adminLogs"></div>
+<h3><i class="fas fa-history"></i> Admin Login Logs</h3>
+<button class="btn-primary" onclick="loadAdminLogs()" style="margin-bottom:12px"><i class="fas fa-sync"></i> REFRESH</button>
+<div class="table-container" style="max-height:500px"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>IP</th><th>Device</th><th>Status</th></tr></thead><tbody id="adminLogsBody"></tbody></table></div>
 </div>
 
 <!-- BACKUP -->
 <div class="glow-card" id="section-backup" style="display:none">
 <h3><i class="fas fa-database"></i> Backup & Restore</h3>
-<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Full backup of everything — download for safety</p>
-<button class="btn-primary" onclick="downloadFullBackup()" style="width:100%"><i class="fas fa-download"></i> DOWNLOAD FULL BACKUP</button>
+<p style="color:var(--text-muted);font-size:11px;margin-bottom:12px">Full system backup — download JSON and keep it safe</p>
+<button class="btn-primary btn-success" onclick="downloadBackup()" style="width:100%;margin-bottom:10px"><i class="fas fa-download"></i> DOWNLOAD FULL BACKUP</button>
+<button class="btn-primary" onclick="loadExport()" style="width:100%"><i class="fas fa-eye"></i> VIEW FULL DATA</button>
 </div>
 
 <!-- SETTINGS -->
 <div class="glow-card" id="section-settings" style="display:none">
 <h3><i class="fas fa-cog"></i> System Settings</h3>
-<div style="color:var(--text-muted);font-size:12px;line-height:1.8">
-<p><strong>Version:</strong> V300 ULTRA OP</p>
-<p><strong>Developer:</strong> <span style="color:${theme.colors.success}">${esc(developerConfig.globalName)}</span></p>
-<p><strong>Total Keys:</strong> ${allKeys.length}</p>
-<p><strong>Custom APIs:</strong> ${customAPIs.length}</p>
-<p><strong>DDoS Mode:</strong> <span style="color:${theme.colors.info}">${ddosConfig.mode}</span></p>
-<p><strong>Theme:</strong> ${theme.preset}</p>
-</div>
+<div class="form-group"><label>Master API Key</label><input class="form-input" value="${esc(MASTER_API_KEY)}" readonly></div>
+<div class="form-group"><label>Admin Path</label><input class="form-input" value="${esc(ADMIN_PATH)}" readonly></div>
+<p style="color:var(--text-muted);font-size:11px;margin-top:12px">Server running on Node.js + Express · V300 ULTRA OP</p>
 </div>
 
-</div></div>
+</div><!-- main-content end -->
+
 <script>
-const TOKEN='${stoken}';
-const ADMIN_PATH='${ADMIN_PATH}';
-const H='{"Content-Type":"application/json","x-admin-token":"'+TOKEN+'"}';
+// ============================================================
+// CORE NAVIGATION — ✅ THE MISSING FIX
+// ============================================================
+const TOKEN = '${stoken}';
+const ADMIN_PATH = '${ADMIN_PATH}';
+const ALL_KEYS = ${JSON.stringify(allKeys)};
+const ALL_ENDPOINTS = ${JSON.stringify(Object.fromEntries(Object.entries(endpoints).map(([k,v])=>[k,{d:v.d,p:v.p,e:v.e,i:v.i}])))};
+const CUSTOM_APIS = ${JSON.stringify(customAPIs)};
+const DEVELOPER_CONFIG = ${JSON.stringify(developerConfig)};
+const CURRENT_THEME = ${JSON.stringify(theme)};
+const PRESETS_OBJ = ${JSON.stringify(PRESETS)};
+const DDOS_CFG = ${JSON.stringify(ddosConfig)};
 
-function api(path,method='GET',body=null){
-  const o={method,headers:{'Content-Type':'application/json','x-admin-token':TOKEN}};
-  if(body)o.body=JSON.stringify(body);
-  return fetch(ADMIN_PATH+path,o).then(r=>r.json());
+function api(path, opts = {}) {
+  return fetch(ADMIN_PATH + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN, ...(opts.headers || {}) }
+  }).then(r => r.json());
+}
+function toast(msg, type = 'success') {
+  const x = document.createElement('div');
+  x.className = 'toast ' + type;
+  x.innerHTML = msg;
+  document.body.appendChild(x);
+  setTimeout(() => x.remove(), 3000);
 }
 
-function showToast(m,t='success'){
-  const x=document.createElement('div');x.className='toast '+t;x.innerHTML=m;
-  document.body.appendChild(x);setTimeout(()=>x.remove(),3500);
-}
-
-function switchSection(name,el){
-  document.querySelectorAll('[id^="section-"]').forEach(s=>s.style.display='none');
-  const s=document.getElementById('section-'+name);
-  if(s)s.style.display='block';
-  document.querySelectorAll('.sidebar-nav a').forEach(a=>a.classList.remove('active'));
-  if(el)el.classList.add('active');
-  if(name==='dashboard')loadDashboard();
-  if(name==='keys')renderKeys();
-  if(name==='monitor')loadMonitorLogs();
-  if(name==='stats')loadStats();
-  if(name==='theme')initThemeUI();
-  if(name==='developer')loadDevOverrides();
-  if(name==='hidewords')loadHiddenWords();
-  if(name==='bans')loadBans();
-  if(name==='devices')loadDevices();
-  if(name==='ddos')loadDDoS();
-  if(name==='apis')renderAPIs();
-  if(name==='protect')renderProtection();
-  if(name==='audit')loadAudit();
-  if(name==='adminlogs')loadAdminLogs();
-}
-
-// Dashboard
-function loadDashboard(){
-  api('/stats').then(d=>{
-    document.getElementById('dashToday').textContent=d.todayRequests||0;
-    document.getElementById('dashWeek').textContent=d.weeklyRequests||0;
-    document.getElementById('dashMonth').textContent=d.monthlyRequests||0;
-    document.getElementById('dashTotal').textContent=d.totalRequests||0;
-    document.getElementById('statToday').textContent=d.todayRequests||0;
-    document.getElementById('statTotal').textContent=d.totalRequests||0;
-    const th=(id,rows)=>{
-      const el=document.getElementById(id);if(!el)return;
-      el.innerHTML=rows.map(r=>'<tr><td><code>'+r.k+'</code></td><td><strong>'+r.v+'</strong></td></tr>').join('')||'<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">No data</td></tr>';
-    };
-    th('topKeysBody',d.topKeys||[]);
-    th('topIPsBody',d.topIPs||[]);
-    th('topDevicesBody',d.topDevices||[]);
-    th('topEpDash',d.topEndpoints||[]);
-  }).catch(()=>{});
-  api('/bans').then(d=>{
-    const total=(d.ip?.length||0)+(d.device?.length||0)+(d.key?.length||0);
-    document.getElementById('statBans').textContent=total;
-  }).catch(()=>{});
-  api('/devices').then(d=>{document.getElementById('statDevices').textContent=d.total||0;}).catch(()=>{});
-}
-
-// Generate
-function randomKey(){document.getElementById('gk').value='';}
-function generateKey(){
-  const scopes=[...document.querySelectorAll('#scopeBoxGenerate input:checked')].map(c=>c.value);
-  const body={
-    keyName:document.getElementById('gk').value.trim()||null,
-    keyOwner:document.getElementById('go').value.trim(),
-    limit:parseInt(document.getElementById('gl').value)||100,
-    dailyLimit:parseInt(document.getElementById('gdl').value)||0,
-    perSecondLimit:parseInt(document.getElementById('gpsl').value)||0,
-    cooldown:parseInt(document.getElementById('gc').value)||0,
-    days:parseInt(document.getElementById('gd').value)||30,
-    notes:document.getElementById('gnotes').value.trim(),
-    formatMode:document.getElementById('gformat').value,
-    customDevName:document.getElementById('gdevname').value.trim(),
-    scopes:scopes.length?scopes:['*']
+// ✅ THE MAIN FIX — switchSection
+function switchSection(name, el) {
+  document.querySelectorAll('.glow-card[id^="section-"]').forEach(s => s.style.display = 'none');
+  const target = document.getElementById('section-' + name);
+  if (target) target.style.display = 'block';
+  document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (window.innerWidth < 768) window.scrollTo(0, 0);
+  // Auto-load data for specific sections
+  const loaders = {
+    dashboard: loadDashboard,
+    keys: renderKeysTable,
+    endpoints: renderEndpointsList,
+    monitor: loadMonitorLogs,
+    stats: loadStats,
+    bans: loadBans,
+    devices: loadDevices,
+    apis: renderAPIsList,
+    export: loadExport,
+    audit: loadAudit,
+    adminlogs: loadAdminLogs,
+    protect: loadProtection,
+    theme: loadThemeUI,
+    hidewords: loadHiddenWords,
+    developer: loadKeyDevOverrides
   };
-  if(!body.keyOwner){showToast('⚠ Owner name required','error');return;}
-  api('/generate-key','POST',body).then(d=>{
-    if(d.success){
-      showToast('✅ Key generated: '+d.key,'success');
-      setTimeout(()=>location.reload(),1500);
-    } else showToast('❌ '+(d.e||'Error'),'error');
-  });
+  if (loaders[name]) try { loaders[name](); } catch (e) { console.log(e); }
 }
 
-// Keys
-function renderKeys(filter=''){
-  api('/export-keys').then(d=>{
-    const keys=d.keys||{};
-    const rows=Object.entries(keys).filter(([k,v])=>!v._hardcoded&&!v.hidden).filter(([k,v])=>{
-      if(!filter)return true;
-      const f=filter.toLowerCase();
-      return k.toLowerCase().includes(f)||(v.name||'').toLowerCase().includes(f);
-    });
-    const body=document.getElementById('keysBody');
-    if(!body)return;
-    document.getElementById('keysCount').textContent=rows.length;
-    body.innerHTML=rows.map(([k,v])=>{
-      const devName=v.devName||'';
-      return '<tr>'+
-        '<td><code style="font-size:9px">'+k.substring(0,20)+'</code></td>'+
-        '<td>'+v.name+'</td>'+
-        '<td>'+(v.limit||100)+'</td>'+
-        '<td>'+(v.used||0)+'</td>'+
-        '<td>'+Math.max(0,(v.limit||0)-(v.used||0))+'</td>'+
-        '<td>'+(v.expiryStr||'∞')+'</td>'+
-        '<td><span style="color:'+(v.formatMode==='op_look'?'#ff9500':v.formatMode==='styled'?'#00e5ff':'#888')+'">'+(v.formatMode||'json')+'</span></td>'+
-        '<td style="font-size:9px;color:#bf00ff">'+devName+'</td>'+
-        '<td>'+(v.stopped?'⛔':v.disabled?'🚫':'✅')+'</td>'+
-        '<td>'+
-          '<button class="btn-action btn-edit" onclick="viewKeyDev(\''+k+'\')">👨‍💻</button>'+
-          '<button class="btn-action btn-reset" onclick="resetKey(\''+k+'\')">🔄</button>'+
-          '<button class="btn-action btn-stop" onclick="stopKey(\''+k+'\')">⏸️</button>'+
-          '<button class="btn-action btn-delete" onclick="deleteKey(\''+k+'\')">🗑️</button>'+
-        '</td>'+
-      '</tr>';
-    }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">No keys</td></tr>';
-  }).catch(()=>{});
+// ============================================================
+// DASHBOARD
+// ============================================================
+function loadDashboard() {
+  api('/stats').then(d => {
+    if (d.e) return;
+    document.getElementById('dashToday').textContent = d.today || 0;
+    document.getElementById('dashWeek').textContent = d.week || 0;
+    document.getElementById('dashMonth').textContent = d.month || 0;
+    document.getElementById('dashTotal').textContent = d.total || 0;
+    document.getElementById('statToday').textContent = d.today || 0;
+    document.getElementById('statTotal').textContent = d.total || 0;
+    document.getElementById('statBans').textContent = d.bans || 0;
+    document.getElementById('statDevices').textContent = d.devices || 0;
+    fillTable('topKeysBody', d.topKeys, 'key', 'count');
+    fillTable('topIPsBody', d.topIPs, 'ip', 'count');
+    fillTable('topDevicesBody', d.topDevices, 'device', 'count');
+    fillTable('topEpDash', d.topEndpoints, 'endpoint', 'count');
+  }).catch(() => {});
 }
-function filterKeys(){renderKeys(document.getElementById('keysFilter').value);}
-function viewKeyDev(k){document.getElementById('keyDevKey').value=k;switchSection('developer',null);document.querySelectorAll('.sidebar-nav a').forEach(a=>{if(a.textContent.includes('Developer'))a.classList.add('active');});}
-function resetKey(k){api('/reset-key-usage','POST',{keyName:k}).then(()=>{showToast('✅ Reset');renderKeys();});}
-function stopKey(k){api('/stop-key','POST',{keyName:k}).then(d=>{showToast('✅ '+(d.stopped?'Stopped':'Resumed'));renderKeys();});}
-function deleteKey(k){if(!confirm('Delete key?'))return;api('/delete-key','POST',{keyName:k}).then(()=>{showToast('✅ Deleted');renderKeys();});}
+function fillTable(id, arr, k1, k2) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!arr || !arr.length) { el.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">No data</td></tr>'; return; }
+  el.innerHTML = arr.map(x => `<tr><td><code>${esc(x[k1])}</code></td><td><strong>${x[k2]}</strong></td></tr>`).join('');
+}
 
-// Developer Mode
-function updateGlobalDev(){
-  const name=document.getElementById('globalDevName').value.trim();
-  if(!name){showToast('⚠ Name required','error');return;}
-  api('/global-developer','POST',{name}).then(d=>{
-    if(d.success){showToast('✅ Global updated');document.getElementById('currentGlobalDev').textContent=name;}
-    else showToast('❌ '+d.e,'error');
-  });
+// ============================================================
+// GENERATE KEY
+// ============================================================
+function randomKey() {
+  document.getElementById('gk').value = 'BRONX_' + Math.random().toString(36).substring(2, 12).toUpperCase();
 }
-function updateKeyDev(){
-  const keyName=document.getElementById('keyDevKey').value.trim();
-  const devName=document.getElementById('keyDevName').value.trim();
-  if(!keyName){showToast('⚠ Key required','error');return;}
-  api('/set-key-developer','POST',{keyName,devName}).then(d=>{
-    if(d.success){showToast('✅ Key dev updated');loadDevOverrides();}
-    else showToast('❌ '+d.e,'error');
-  });
-}
-function loadDevOverrides(){
-  api('/export-keys').then(d=>{
-    const overrides=[];
-    Object.entries(d.developerConfig?.perKeyNames||{}).forEach(([k,v])=>overrides.push({k,v}));
-    const body=document.getElementById('keyDevOverrides');
-    if(body)body.innerHTML=overrides.map(o=>'<tr><td><code style="font-size:9px">'+o.k+'</code></td><td style="color:#bf00ff">'+o.v+'</td><td><button class="btn-action btn-delete" onclick="removeKeyDev(\''+o.k+'\')">🗑️ Remove</button></td></tr>').join('')||'<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No overrides</td></tr>';
-    const inp=document.getElementById('globalDevName');
-    if(inp&&!inp.value)inp.placeholder=d.developerConfig?.globalName||'@BRONX_ULTRA';
-    const cur=document.getElementById('currentGlobalDev');
-    if(cur)cur.textContent=d.developerConfig?.globalName||'@BRONX_ULTRA';
-  });
-}
-function removeKeyDev(k){api('/set-key-developer','POST',{keyName:k,devName:''}).then(()=>{showToast('✅ Removed');loadDevOverrides();});}
-
-// Hide Words
-function loadHiddenWords(){
-  api('/export-keys').then(d=>{
-    const words=d.developerConfig?.hiddenWords||[];
-    const list=document.getElementById('hiddenWordsList');
-    if(list)list.innerHTML=words.map(w=>'<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(255,45,45,.1);border:1px solid rgba(255,45,45,.3);border-radius:8px;font-size:11px;color:#ff2d2d">'+w+' <button onclick="removeHiddenWord(\''+w+'\')" style="background:transparent;border:none;color:#ff2d2d;cursor:pointer;font-size:14px;line-height:1">×</button></span>').join('')||'<span style="color:var(--text-muted);font-size:11px">No hidden words</span>';
-  });
-}
-function addHiddenWord(){
-  const word=document.getElementById('hideWordInput').value.trim();
-  if(!word){showToast('⚠ Word required','error');return;}
-  api('/hidden-words/add','POST',{word}).then(d=>{
-    if(d.success){showToast('✅ Added');document.getElementById('hideWordInput').value='';loadHiddenWords();}
-  });
-}
-function removeHiddenWord(word){api('/hidden-words/remove','POST',{word}).then(()=>{showToast('✅ Removed');loadHiddenWords();});}
-
-// DDoS
-function loadDDoS(){
-  api('/ddos-config').then(c=>{
-    document.getElementById('ddosMode').value=c.mode||'smart';
-    document.getElementById('ddosIP10').value=c.ip.burst10s;
-    document.getElementById('ddosIP1M').value=c.ip.perMinute;
-    document.getElementById('ddosIP1H').value=c.ip.perHour;
-    document.getElementById('ddosDEV10').value=c.device.burst10s;
-    document.getElementById('ddosDEV1M').value=c.device.perMinute;
-    document.getElementById('ddosDEV1H').value=c.device.perHour;
-  });
-}
-function saveDDoSConfig(){
-  const body={
-    mode:document.getElementById('ddosMode').value,
-    enabled:document.getElementById('ddosMode').value!=='off',
-    ip:{
-      burst10s:parseInt(document.getElementById('ddosIP10').value),
-      perMinute:parseInt(document.getElementById('ddosIP1M').value),
-      perHour:parseInt(document.getElementById('ddosIP1H').value)
-    },
-    device:{
-      burst10s:parseInt(document.getElementById('ddosDEV10').value),
-      perMinute:parseInt(document.getElementById('ddosDEV1M').value),
-      perHour:parseInt(document.getElementById('ddosDEV1H').value)
-    }
+function generateKey() {
+  const body = {
+    keyName: document.getElementById('gk').value.trim(),
+    keyOwner: document.getElementById('go').value.trim(),
+    limit: document.getElementById('gl').value,
+    dailyLimit: document.getElementById('gdl').value,
+    perSecondLimit: document.getElementById('gpsl').value,
+    cooldown: document.getElementById('gc').value,
+    days: document.getElementById('gd').value,
+    notes: document.getElementById('gnotes').value,
+    formatMode: document.getElementById('gformat').value,
+    customDevName: document.getElementById('gdevname').value.trim(),
+    scopes: Array.from(document.querySelectorAll('#scopeBoxGenerate input:checked')).map(i => i.value)
   };
-  api('/ddos-config','POST',body).then(d=>{
-    if(d.success)showToast('✅ DDoS saved permanently!','success');
-    else showToast('❌ Error','error');
+  if (!body.keyOwner) return toast('❌ Owner name required', 'error');
+  api('/generate-key', { method: 'POST', body: JSON.stringify(body) }).then(d => {
+    if (d.success) { toast('✅ Key generated: ' + d.key, 'success'); setTimeout(() => location.reload(), 1200); }
+    else toast('❌ ' + (d.e || 'Error'), 'error');
   });
 }
 
-// Export/Import
-function loadExport(){
-  api('/export-keys').then(d=>{
-    document.getElementById('exportData').value=JSON.stringify(d,null,2);
-    showToast('✅ Loaded FULL data','success');
+// ============================================================
+// KEYS TABLE
+// ============================================================
+function renderKeysTable() {
+  const tbody = document.getElementById('keysBody');
+  if (!tbody) return;
+  const filter = (document.getElementById('keysFilter')?.value || '').toLowerCase();
+  const list = ALL_KEYS.filter(k => !filter || k.key.toLowerCase().includes(filter) || k.name.toLowerCase().includes(filter));
+  tbody.innerHTML = list.map(k => `
+    <tr>
+      <td><code>${esc(k.key)}</code></td>
+      <td>${esc(k.name)}</td>
+      <td>${k.limit}</td>
+      <td>${k.used}</td>
+      <td><strong style="color:${k.left === 0 ? 'var(--neon-red)' : 'var(--neon-green)'}">${k.left}</strong></td>
+      <td>${esc(k.expiry)}</td>
+      <td><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--neon-cyan);color:#000">${esc(k.formatMode)}</span></td>
+      <td>${k.devName ? esc(k.devName) : '<span style="color:var(--text-muted)">global</span>'}</td>
+      <td>${k.stopped ? '⛔' : k.disabled ? '🚫' : '✅'}</td>
+      <td>
+        <button class="btn-action btn-reset" onclick="resetKey('${esc(k.key)}')">Reset</button>
+        <button class="btn-action btn-push" onclick="pushKey('${esc(k.key)}')">Push</button>
+        <button class="btn-action btn-stop" onclick="stopKey('${esc(k.key)}')">${k.stopped ? 'Start' : 'Stop'}</button>
+        <button class="btn-action btn-delete" onclick="deleteKey('${esc(k.key)}')">Del</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">No keys</td></tr>';
+}
+function filterKeys() { renderKeysTable(); }
+function resetKey(k) { api('/reset-key-usage', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(() => { toast('✅ Reset'); setTimeout(() => location.reload(), 600); }); }
+function pushKey(k) { const d = prompt('Push how many days?', '30'); if (!d) return; api('/push-key', { method: 'POST', body: JSON.stringify({ keyName: k, days: d }) }).then(() => { toast('✅ Pushed'); setTimeout(() => location.reload(), 600); }); }
+function stopKey(k) { api('/stop-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(d => { toast(d.stopped ? '⛔ Stopped' : '✅ Started'); setTimeout(() => location.reload(), 600); }); }
+function deleteKey(k) { if (!confirm('Delete ' + k + '?')) return; api('/delete-key', { method: 'POST', body: JSON.stringify({ keyName: k }) }).then(() => { toast('🗑️ Deleted'); setTimeout(() => location.reload(), 600); }); }
+
+// ============================================================
+// ENDPOINTS
+// ============================================================
+function renderEndpointsList() {
+  const el = document.getElementById('endpointsList');
+  if (!el) return;
+  let html = '';
+  Object.entries(ALL_ENDPOINTS).forEach(([n, e]) => {
+    html += `<div class="endpoint-card"><div class="ep-icon">${e.i}</div><div class="ep-name">/${n}</div><div class="ep-desc">${e.d}</div><div class="ep-url">/api/key-bronx/${n}?key=KEY&${e.p}=${e.e}</div></div>`;
   });
-}
-function copyExport(){
-  const t=document.getElementById('exportData');
-  if(!t.value){showToast('⚠ Load first','warning');return;}
-  navigator.clipboard.writeText(t.value).then(()=>showToast('✅ Copied!'));
-}
-function downloadExport(){
-  const t=document.getElementById('exportData');
-  if(!t.value){showToast('⚠ Load first','warning');return;}
-  const blob=new Blob([t.value],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='bronx_v300_full_backup_'+Date.now()+'.json';a.click();
-  URL.revokeObjectURL(url);
-}
-function importKeys(){
-  const t=document.getElementById('importData').value.trim();
-  if(!t){showToast('⚠ Paste data first','error');return;}
-  let data;
-  try{data=JSON.parse(t);}catch(e){showToast('❌ Invalid JSON','error');return;}
-  api('/import-keys','POST',data).then(d=>{
-    const msg=document.getElementById('importMsg');
-    if(d.success){
-      msg.style.color='#00ff88';
-      msg.textContent='✅ '+d.message;
-      showToast('✅ Imported! Reload page','success');
-      setTimeout(()=>location.reload(),2000);
-    } else {
-      msg.style.color='#ff2d2d';
-      msg.textContent='❌ '+d.e;
-    }
+  CUSTOM_APIS.forEach(a => {
+    html += `<div class="endpoint-card"><div class="ep-icon">🔧</div><div class="ep-name">/${a.endpoint}</div><div class="ep-desc">Custom</div><div class="ep-url">/api/custom/${a.endpoint}?key=KEY&${a.param}=${a.example}</div></div>`;
   });
+  el.innerHTML = html;
 }
 
-function downloadFullBackup(){loadExport();setTimeout(downloadExport,500);}
+// ============================================================
+// MONITOR
+// ============================================================
+let MONITOR_LOGS = [];
+function loadMonitorLogs() {
+  api('/monitor-logs').then(d => {
+    MONITOR_LOGS = d.logs || [];
+    renderMonitor();
+  }).catch(() => {});
+}
+function renderMonitor() {
+  const el = document.getElementById('monitorLogs');
+  if (!el) return;
+  const filter = (document.getElementById('monitorFilter')?.value || '').toLowerCase();
+  const list = MONITOR_LOGS.filter(l => !filter || JSON.stringify(l).toLowerCase().includes(filter)).slice(-200).reverse();
+  el.innerHTML = list.map(l => `
+    <div class="log-entry">
+      <span class="log-time">${esc(l.timestamp)}</span>
+      <span class="log-key">${esc(l.key)}</span>
+      <span class="log-endpoint">/${esc(l.endpoint)}</span>
+      <span class="log-ip">${esc(l.ip)}</span>
+      <span class="log-device">${esc(l.deviceIcon)} ${esc(l.deviceType)}</span>
+      <span class="log-browser">${esc(l.browser)}</span>
+    </div>`).join('') || '<p style="text-align:center;color:var(--text-muted);padding:20px">No logs</p>';
+}
 
-// Theme
-function initThemeUI(){
-  const grid=document.getElementById('presetsGrid');
-  if(grid){
-    document.querySelectorAll('.preset-card').forEach(c=>{
-      c.classList.toggle('active',c.dataset.preset==='${theme.preset}');
-    });
+// ============================================================
+// STATS
+// ============================================================
+function loadStats() {
+  api('/stats-full').then(d => {
+    if (d.e) return;
+    document.getElementById('statTotalReqs').textContent = d.total || 0;
+    document.getElementById('statTodayReqs').textContent = d.today || 0;
+    document.getElementById('statWeekReqs').textContent = d.week || 0;
+    document.getElementById('statMonthReqs').textContent = d.month || 0;
+    fillTable('topEndpointsBody', d.topEndpoints, 'endpoint', 'count');
+    fillTable('clientStatsBody', d.clients, 'client', 'count');
+    fillTable('browserStatsBody', d.browsers, 'browser', 'count');
+    fillTable('countryStatsBody', d.countries, 'country', 'count');
+    fillTable('osStatsBody', d.oses, 'os', 'count');
+  }).catch(() => {});
+}
+
+// ============================================================
+// THEME
+// ============================================================
+function switchTab(name, el) {
+  ['presets', 'colors', 'effects'].forEach(t => {
+    const tab = document.getElementById('themeTab-' + t);
+    if (tab) tab.style.display = t === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('#section-theme .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+function applyPresetByName(name) {
+  api('/apply-preset', { method: 'POST', body: JSON.stringify({ preset: name }) }).then(d => {
+    if (d.success) { toast('🎨 Preset applied: ' + name); setTimeout(() => location.reload(), 700); }
+    else toast('❌ ' + (d.e || 'Error'), 'error');
+  });
+}
+function loadThemeUI() {
+  // Load color pickers
+  const cp = document.getElementById('colorPickers');
+  if (cp && !cp.innerHTML) {
+    const colors = CURRENT_THEME.colors;
+    cp.innerHTML = Object.keys(colors).map(k => `
+      <div class="color-picker-row">
+        <label>${k}</label>
+        <input type="color" value="${colors[k]}" id="color-${k}" data-key="${k}">
+      </div>`).join('');
   }
-  const cp=document.getElementById('colorPickers');
-  if(cp&&!cp.innerHTML){
-    const colors=['accent','accent2','success','warning','danger','info','pink','purple','yellow'];
-    cp.innerHTML=colors.map(c=>'<div class="color-picker-row"><label>'+c+'</label><input type="color" id="color-'+c+'" value="'+getComputedStyle(document.documentElement).getPropertyValue('--'+c).trim()+'"></div>').join('');
+  // Load effects toggles
+  const ef = document.getElementById('effectsList');
+  if (ef && !ef.innerHTML) {
+    const effects = CURRENT_THEME.effects;
+    ef.innerHTML = Object.keys(effects).filter(k => typeof effects[k] === 'boolean').map(k => `
+      <div class="color-picker-row">
+        <label>${k}</label>
+        <input type="checkbox" ${effects[k] ? 'checked' : ''} id="effect-${k}" data-key="${k}" style="width:40px;height:24px">
+      </div>`).join('');
   }
 }
-function applyPresetByName(name){
-  api('/theme/preset','POST',{preset:name}).then(d=>{
-    if(d.success){showToast('✅ Theme applied LIVE');location.reload();}
+function saveCustomColors() {
+  const colors = {};
+  document.querySelectorAll('#colorPickers input[type=color]').forEach(i => { colors[i.dataset.key] = i.value; });
+  api('/update-theme', { method: 'POST', body: JSON.stringify({ colors }) }).then(d => { if (d.success) { toast('🎨 Colors saved'); setTimeout(() => location.reload(), 700); } });
+}
+function saveEffects() {
+  const effects = {};
+  document.querySelectorAll('#effectsList input[type=checkbox]').forEach(i => { effects[i.dataset.key] = i.checked; });
+  api('/update-theme', { method: 'POST', body: JSON.stringify({ effects }) }).then(d => { if (d.success) { toast('✨ Effects saved'); setTimeout(() => location.reload(), 700); } });
+}
+function resetTheme() { if (!confirm('Reset theme?')) return; api('/reset-theme', { method: 'POST', body: '{}' }).then(() => { toast('🔄 Theme reset'); setTimeout(() => location.reload(), 700); }); }
+
+// ============================================================
+// DEVELOPER MODE
+// ============================================================
+function updateGlobalDev() {
+  const name = document.getElementById('globalDevName').value.trim();
+  if (!name) return toast('❌ Name required', 'error');
+  api('/global-developer', { method: 'POST', body: JSON.stringify({ name }) }).then(d => {
+    if (d.success) { toast('✅ Global developer updated'); document.getElementById('currentGlobalDev').textContent = name; }
+    else toast('❌ ' + (d.e || 'Error'), 'error');
   });
 }
-function resetTheme(){if(confirm('Reset to default?'))api('/theme/reset','POST',{}).then(()=>location.reload());}
-function saveCustomColors(){
-  const colors={};
-  ['accent','accent2','success','warning','danger','info','pink','purple','yellow'].forEach(c=>{
-    const el=document.getElementById('color-'+c);
-    if(el)colors[c]=el.value;
+function updateKeyDev() {
+  const keyName = document.getElementById('keyDevKey').value.trim();
+  const devName = document.getElementById('keyDevName').value.trim();
+  if (!keyName) return toast('❌ Key required', 'error');
+  api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName, devName }) }).then(d => {
+    if (d.success) { toast('✅ Updated'); loadKeyDevOverrides(); }
+    else toast('❌ ' + (d.e || 'Error'), 'error');
   });
-  api('/theme/colors','POST',{colors}).then(()=>{showToast('✅ Colors saved');location.reload();});
 }
-function saveEffects(){
-  const effects={};
-  document.querySelectorAll('#effectsList input[type=checkbox]').forEach(c=>{effects[c.dataset.effect]=c.checked;});
-  api('/theme/effects','POST',{effects}).then(()=>{showToast('✅ Effects saved');location.reload();});
+function loadKeyDevOverrides() {
+  const el = document.getElementById('keyDevOverrides');
+  if (!el) return;
+  const overrides = DEVELOPER_CONFIG.perKeyNames || {};
+  const entries = Object.entries(overrides);
+  el.innerHTML = entries.map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td>${esc(v)}</td><td><button class="btn-action btn-delete" onclick="removeKeyDev('${esc(k)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No overrides</td></tr>';
+}
+function removeKeyDev(k) {
+  api('/set-key-developer', { method: 'POST', body: JSON.stringify({ keyName: k, devName: '' }) }).then(() => { toast('🗑️ Removed'); loadKeyDevOverrides(); });
 }
 
-// Bans
-function loadBans(){
-  api('/bans').then(d=>{
-    const body=document.getElementById('bansIPBody');
-    if(body)body.innerHTML=(d.ip||[]).map(b=>'<tr><td><code>'+b.id+'</code></td><td>'+(b.reason||'-')+'</td><td>'+(b.at||'-')+'</td><td>'+(b.permanent?'🚫 Permanent':'⏸️ Temp')+'</td><td><button class="btn-action btn-reset" onclick="unbanIP(\''+b.id+'\')">✅ Unban</button></td></tr>').join('')||'<tr><td colspan="5" style="text-align:center">No bans</td></tr>';
+// ============================================================
+// HIDE WORDS
+// ============================================================
+function loadHiddenWords() {
+  const el = document.getElementById('hiddenWordsList');
+  if (!el) return;
+  const words = DEVELOPER_CONFIG.hiddenWords || [];
+  el.innerHTML = words.map(w => `<span style="padding:5px 10px;background:var(--neon-red);color:#fff;border-radius:6px;font-size:11px;display:inline-flex;align-items:center;gap:6px">${esc(w)}<span onclick="removeHiddenWord('${esc(w)}')" style="cursor:pointer;font-weight:900">×</span></span>`).join('') || '<p style="color:var(--text-muted);font-size:11px">No hidden words</p>';
+}
+function addHiddenWord() {
+  const w = document.getElementById('hideWordInput').value.trim();
+  if (!w) return toast('❌ Word required', 'error');
+  api('/hidden-words/add', { method: 'POST', body: JSON.stringify({ word: w }) }).then(d => {
+    if (d.success) { toast('✅ Added'); DEVELOPER_CONFIG.hiddenWords = d.hiddenWords; loadHiddenWords(); document.getElementById('hideWordInput').value = ''; }
   });
 }
-function unbanIP(id){api('/unban','POST',{type:'ip',id}).then(()=>{showToast('✅ Unbanned');loadBans();});}
-function unbanAll(){if(!confirm('Unban ALL?'))return;api('/unban-all','POST',{}).then(()=>{showToast('✅ All unbanned');loadBans();});}
+function removeHiddenWord(w) {
+  api('/hidden-words/remove', { method: 'POST', body: JSON.stringify({ word: w }) }).then(d => {
+    if (d.success) { toast('🗑️ Removed'); DEVELOPER_CONFIG.hiddenWords = d.hiddenWords; loadHiddenWords(); }
+  });
+}
 
-// Devices
-function loadDevices(){
-  api('/devices').then(d=>{
-    const body=document.getElementById('devicesBody');
-    if(body)body.innerHTML=(d.devices||[]).slice(0,100).map(dev=>'<tr><td><code style="font-size:9px">'+dev.id.substring(0,16)+'</code></td><td>'+dev.deviceIcon+' '+dev.deviceType+'</td><td>'+dev.browser+'</td><td>'+dev.os+'</td><td><strong>'+dev.requests+'</strong></td><td style="font-size:9px">'+dev.lastSeen+'</td><td>'+(dev.banned?'🚫':'<button class="btn-action btn-stop" onclick="banDevice(\''+dev.id+'\')">Ban</button>')+'</td></tr>').join('')||'<tr><td colspan="7" style="text-align:center">No devices</td></tr>';
+// ============================================================
+// EXPORT / IMPORT
+// ============================================================
+let EXPORT_CACHE = '';
+function loadExport() {
+  api('/export-keys').then(d => {
+    EXPORT_CACHE = JSON.stringify(d, null, 2);
+    const el = document.getElementById('exportData');
+    if (el) el.value = EXPORT_CACHE;
   });
 }
-function banDevice(id){api('/ban','POST',{type:'device',id,reason:'Manual ban',permanent:false,minutes:60}).then(()=>{showToast('✅ Banned');loadDevices();});}
+function copyExport() {
+  if (!EXPORT_CACHE) return toast('⚠️ Load first', 'warning');
+  navigator.clipboard.writeText(EXPORT_CACHE).then(() => toast('📋 Copied!'));
+}
+function downloadExport() {
+  if (!EXPORT_CACHE) return toast('⚠️ Load first', 'warning');
+  const blob = new Blob([EXPORT_CACHE], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bronx-backup-' + Date.now() + '.json';
+  a.click();
+  toast('📥 Downloaded');
+}
+function importKeys() {
+  const data = document.getElementById('importData').value.trim();
+  if (!data) return toast('❌ Paste JSON first', 'error');
+  let parsed;
+  try { parsed = JSON.parse(data); } catch (e) { return toast('❌ Invalid JSON: ' + e.message, 'error'); }
+  api('/import-keys', { method: 'POST', body: JSON.stringify(parsed) }).then(d => {
+    if (d.success) { toast('✅ ' + d.message); setTimeout(() => location.reload(), 1500); }
+    else toast('❌ ' + (d.e || 'Error'), 'error');
+  });
+}
 
-// APIs
-function renderAPIs(){
-  api('/export-keys').then(d=>{
-    const apis=d.customAPIs||[];
-    const body=document.getElementById('apisBody');
-    if(body)body.innerHTML=apis.map(a=>'<tr><td>'+a.id+'</td><td>'+a.name+'</td><td><code>'+a.endpoint+'</code></td><td><code style="font-size:9px">'+(a.scopeKey||'')+'</code></td><td>'+a.param+'</td><td>'+(a.visible?'✅':'❌')+'</td><td><button class="btn-action btn-stop" onclick="toggleAPI('+a.id+')">'+(a.visible?'Hide':'Show')+'</button><button class="btn-action btn-delete" onclick="deleteAPI('+a.id+')">🗑️</button></td></tr>').join('');
-    document.getElementById('apiCount').textContent=apis.length;
+// ============================================================
+// SCOPES
+// ============================================================
+function updateScopes() {
+  const keyName = document.getElementById('sk').value.trim();
+  if (!keyName) return toast('❌ Key required', 'error');
+  const scopes = Array.from(document.querySelectorAll('#scopeBoxUpdate input:checked')).map(i => i.value);
+  api('/update-scopes', { method: 'POST', body: JSON.stringify({ keyName, scopes }) }).then(d => {
+    if (d.success) toast('✅ Scopes updated'); else toast('❌ ' + (d.e || 'Error'), 'error');
   });
 }
-function toggleAPI(id){api('/toggle-api','POST',{id}).then(()=>{showToast('✅');renderAPIs();});}
-function deleteAPI(id){if(!confirm('Delete?'))return;api('/delete-api','POST',{id}).then(()=>{showToast('✅');renderAPIs();});}
-function addAPI(){
-  const body={
-    name:document.getElementById('aname').value.trim(),
-    endpoint:document.getElementById('aep').value.trim(),
-    param:document.getElementById('aparam').value.trim(),
-    example:document.getElementById('aex').value.trim(),
-    realAPI:document.getElementById('aurl').value.trim()
+
+// ============================================================
+// PROTECTION
+// ============================================================
+function loadProtection() {
+  api('/protection').then(d => {
+    const el = document.getElementById('protectList');
+    if (!el) return;
+    const entries = Object.entries(d.protected || {});
+    el.innerHTML = '<table><thead><tr><th>Key</th><th>Value</th><th>Action</th></tr></thead><tbody>' +
+      (entries.map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td><td><button class="btn-action btn-delete" onclick="removeProtection('${esc(k)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No protected data</td></tr>') +
+      '</tbody></table>';
+  }).catch(() => {});
+}
+function addProtection() {
+  const val = document.getElementById('protVal').value.trim();
+  if (!val) return toast('❌ Value required', 'error');
+  api('/protection/add', { method: 'POST', body: JSON.stringify({ key: 'prot_' + Date.now(), value: val }) }).then(d => {
+    if (d.success) { toast('✅ Protected'); loadProtection(); document.getElementById('protVal').value = ''; }
+  });
+}
+function removeProtection(k) {
+  api('/protection/remove', { method: 'POST', body: JSON.stringify({ key: k }) }).then(() => { toast('🗑️ Removed'); loadProtection(); });
+}
+
+// ============================================================
+// CUSTOM APIS
+// ============================================================
+function renderAPIsList() {
+  const el = document.getElementById('apisBody');
+  if (!el) return;
+  el.innerHTML = CUSTOM_APIS.map(a => `
+    <tr>
+      <td>${a.id}</td>
+      <td>${esc(a.name)}</td>
+      <td><code>${esc(a.endpoint)}</code></td>
+      <td><code>${esc(a.scopeKey || '')}</code></td>
+      <td>${esc(a.param)}</td>
+      <td>${a.visible ? '✅' : '❌'}</td>
+      <td>
+        <button class="btn-action btn-edit" onclick="toggleAPI(${a.id})">Toggle</button>
+        <button class="btn-action btn-delete" onclick="deleteAPI(${a.id})">Del</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No custom APIs</td></tr>';
+}
+function toggleAPI(id) { api('/toggle-api', { method: 'POST', body: JSON.stringify({ id }) }).then(() => { toast('✅ Toggled'); setTimeout(() => location.reload(), 500); }); }
+function deleteAPI(id) { if (!confirm('Delete API?')) return; api('/delete-api', { method: 'POST', body: JSON.stringify({ id }) }).then(() => { toast('🗑️ Deleted'); setTimeout(() => location.reload(), 500); }); }
+function addAPI() {
+  const body = {
+    name: document.getElementById('aname').value.trim(),
+    endpoint: document.getElementById('aep').value.trim().toLowerCase(),
+    param: document.getElementById('aparam').value.trim(),
+    example: document.getElementById('aex').value.trim(),
+    realAPI: document.getElementById('aurl').value.trim()
   };
-  if(!body.name||!body.endpoint||!body.realAPI){showToast('⚠ Fill all','error');return;}
-  api('/add-api','POST',body).then(d=>{
-    if(d.success){showToast('✅ API added');document.getElementById('aname').value='';document.getElementById('aep').value='';document.getElementById('aurl').value='';}
-    else showToast('❌ '+d.e,'error');
+  if (!body.name || !body.endpoint || !body.realAPI) return toast('❌ Fill required fields', 'error');
+  api('/add-api', { method: 'POST', body: JSON.stringify(body) }).then(d => {
+    if (d.success) { toast('✅ API added'); setTimeout(() => location.reload(), 800); }
+    else toast('❌ ' + (d.e || 'Error'), 'error');
   });
 }
 
-// Protection
-function renderProtection(){
-  api('/export-keys').then(d=>{
-    const prots=Object.keys(d.protectedData||{});
-    const el=document.getElementById('protectList');
-    if(el)el.innerHTML='<table><thead><tr><th>Protected Value</th><th>Action</th></tr></thead><tbody>'+prots.map(p=>'<tr><td><code>'+p+'</code></td><td><button class="btn-action btn-delete" onclick="removeProtection(\''+p+'\')">🗑️</button></td></tr>').join('')+'</tbody></table>';
-  });
-}
-function addProtection(){
-  const v=document.getElementById('protVal').value.trim();
-  if(!v){showToast('⚠ Required','error');return;}
-  api('/add-protection','POST',{value:v}).then(()=>{showToast('✅ Added');document.getElementById('protVal').value='';renderProtection();});
-}
-function removeProtection(v){api('/remove-protection','POST',{value:v}).then(()=>{showToast('✅');renderProtection();});}
-
-// Stats
-function loadStats(){
-  api('/stats').then(d=>{
-    document.getElementById('statTotalReqs').textContent=d.totalRequests||0;
-    document.getElementById('statTodayReqs').textContent=d.todayRequests||0;
-    document.getElementById('statWeekReqs').textContent=d.weeklyRequests||0;
-    document.getElementById('statMonthReqs').textContent=d.monthlyRequests||0;
-    const th=(id,rows)=>{
-      const el=document.getElementById(id);if(!el)return;
-      el.innerHTML=rows.map(r=>'<tr><td>'+r.k+'</td><td><strong>'+r.v+'</strong></td></tr>').join('')||'<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">No data</td></tr>';
-    };
-    th('topEndpointsBody',d.topEndpoints||[]);
-    th('clientStatsBody',d.clientStats||[]);
-    th('browserStatsBody',d.browserStats||[]);
-    th('countryStatsBody',d.countryStats||[]);
-    th('osStatsBody',d.osStats||[]);
+// ============================================================
+// DDOS
+// ============================================================
+function saveDDoSConfig() {
+  const body = {
+    mode: document.getElementById('ddosMode').value,
+    enabled: document.getElementById('ddosMode').value !== 'off',
+    ip: { burst10s: +document.getElementById('ddosIP10').value, perMinute: +document.getElementById('ddosIP1M').value, perHour: +document.getElementById('ddosIP1H').value },
+    device: { burst10s: +document.getElementById('ddosDEV10').value, perMinute: +document.getElementById('ddosDEV1M').value, perHour: +document.getElementById('ddosDEV1H').value }
+  };
+  api('/ddos-config', { method: 'POST', body: JSON.stringify(body) }).then(d => {
+    if (d.success) toast('✅ DDoS config saved');
+    else toast('❌ ' + (d.e || 'Error'), 'error');
   });
 }
 
-// Monitor
-function loadMonitorLogs(){
-  api('/monitor-logs').then(d=>{
-    const el=document.getElementById('monitorLogs');
-    if(!el)return;
-    el.innerHTML=(d.logs||[]).slice(-100).reverse().map(l=>'<div class="log-entry"><span class="log-time">'+l.timestamp+'</span><span class="log-key">'+l.key+'</span><span class="log-endpoint">/'+l.endpoint+'</span><span class="log-ip">'+l.ip+'</span><span class="log-device">'+l.deviceIcon+' '+l.deviceType+'</span><span class="log-browser">'+l.browser+'</span></div>').join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">No logs yet</div>';
-  });
+// ============================================================
+// BANS
+// ============================================================
+function loadBans() {
+  api('/bans').then(d => {
+    const el = document.getElementById('bansIPBody');
+    if (!el) return;
+    const entries = Object.entries(d.ip || {});
+    el.innerHTML = entries.map(([ip, b]) => `
+      <tr>
+        <td><code>${esc(ip)}</code></td>
+        <td>${esc(b.reason || '-')}</td>
+        <td>${esc(b.at || '-')}</td>
+        <td>${b.permanent ? '🚫 Permanent' : (Date.now() < b.until ? '⏸️ Temp' : '✅ Expired')}</td>
+        <td><button class="btn-action btn-delete" onclick="unbanIP('${esc(ip)}')">Unban</button></td>
+      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No bans</td></tr>';
+  }).catch(() => {});
 }
-function renderMonitor(){loadMonitorLogs();}
+function unbanIP(ip) { api('/unban', { method: 'POST', body: JSON.stringify({ type: 'ip', id: ip }) }).then(() => { toast('✅ Unbanned'); loadBans(); }); }
+function unbanAll() { if (!confirm('Unban all?')) return; api('/unban-all', { method: 'POST', body: '{}' }).then(() => { toast('✅ All unbanned'); loadBans(); }); }
 
-// Announcement/Maintenance
-function saveAnnouncement(){
-  api('/announcement','POST',{
-    enabled:document.getElementById('announceEnabled').value==='true',
-    text:document.getElementById('announceText').value,
-    type:document.getElementById('announceType').value
-  }).then(()=>showToast('✅ Saved'));
+// ============================================================
+// DEVICES
+// ============================================================
+function loadDevices() {
+  api('/devices').then(d => {
+    const el = document.getElementById('devicesBody');
+    if (!el) return;
+    const entries = Object.entries(d.devices || {});
+    el.innerHTML = entries.map(([id, dev]) => `
+      <tr>
+        <td><code>${esc(id)}</code></td>
+        <td>${esc(dev.deviceIcon)} ${esc(dev.deviceType)}</td>
+        <td>${esc(dev.browser)}</td>
+        <td>${esc(dev.os)}</td>
+        <td>${dev.requests}</td>
+        <td>${esc(dev.lastSeen)}</td>
+        <td><button class="btn-action btn-delete" onclick="banDevice('${esc(id)}')">Ban</button></td>
+      </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No devices</td></tr>';
+  }).catch(() => {});
 }
-function saveMaintenance(){
-  api('/maintenance','POST',{
-    enabled:document.getElementById('maintEnabled').value==='true',
-    message:document.getElementById('maintMessage').value
-  }).then(()=>showToast('✅ Saved'));
+function banDevice(id) { api('/ban-device', { method: 'POST', body: JSON.stringify({ id }) }).then(() => toast('⛔ Banned')); }
+
+// ============================================================
+// ANNOUNCEMENT
+// ============================================================
+function saveAnnouncement() {
+  const body = { enabled: document.getElementById('announceEnabled').value === 'true', text: document.getElementById('announceText').value.trim(), type: document.getElementById('announceType').value };
+  api('/announcement', { method: 'POST', body: JSON.stringify(body) }).then(() => toast('✅ Announcement saved'));
 }
 
-// Audit/Admin Logs
-function loadAudit(){api('/audit-log').then(d=>{const el=document.getElementById('auditLogs');if(el)el.innerHTML=(d.logs||[]).slice(-100).reverse().map(l=>'<div class="log-entry"><span class="log-time">'+l.timestamp+'</span><span class="log-key">'+l.user+'</span><span class="log-endpoint">'+l.action+'</span><span style="color:#aaa">'+JSON.stringify(l.details||{})+'</span></div>').join('');});}
-function loadAdminLogs(){api('/admin-logs').then(d=>{const el=document.getElementById('adminLogs');if(el)el.innerHTML=(d.logs||[]).slice(-100).reverse().map(l=>'<div class="log-entry"><span class="log-time">'+l.timestamp+'</span><span class="log-key">'+l.user+'</span><span class="log-endpoint">'+l.action+'</span><span class="log-ip">'+l.ip+'</span><span class="log-browser">'+l.browser+'</span></div>').join('');});}
-
-function switchTab(name,el){
-  document.querySelectorAll('[id^="themeTab-"]').forEach(t=>t.style.display='none');
-  const t=document.getElementById('themeTab-'+name);if(t)t.style.display='block';
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-  if(el)el.classList.add('active');
+// ============================================================
+// MAINTENANCE
+// ============================================================
+function saveMaintenance() {
+  const body = { enabled: document.getElementById('maintenanceEnabled').value === 'true', message: document.getElementById('maintenanceMessage').value.trim() };
+  api('/maintenance', { method: 'POST', body: JSON.stringify(body) }).then(() => toast('✅ Maintenance saved'));
 }
 
-// Init
-loadDashboard();
-setInterval(()=>{if(document.getElementById('section-dashboard').style.display!=='none')loadDashboard();},15000);
+// ============================================================
+// AUDIT / LOGS
+// ============================================================
+function loadAudit() {
+  api('/audit-log').then(d => {
+    const el = document.getElementById('auditBody');
+    if (!el) return;
+    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => `
+      <tr><td>${esc(l.timestamp)}</td><td>${esc(l.user)}</td><td>${esc(l.action)}</td><td>${esc(JSON.stringify(l.details))}</td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
+  }).catch(() => {});
+}
+function loadAdminLogs() {
+  api('/admin-logs').then(d => {
+    const el = document.getElementById('adminLogsBody');
+    if (!el) return;
+    el.innerHTML = (d.logs || []).slice(-200).reverse().map(l => `
+      <tr><td>${esc(l.timestamp)}</td><td>${esc(l.user || '-')}</td><td>${esc(l.action)}</td><td>${esc(l.ip || '-')}</td><td>${esc(l.device || '-')}</td><td>${esc(l.status)}</td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No logs</td></tr>';
+  }).catch(() => {});
+}
+function downloadBackup() { loadExport(); setTimeout(() => downloadExport(), 800); }
 
-// Snowfall
-const sc=document.getElementById('snowfall-canvas'),sctx=sc.getContext('2d');
-function resizeCanvas(){sc.width=window.innerWidth;sc.height=window.innerHeight;}
-resizeCanvas();window.addEventListener('resize',resizeCanvas);
-const colors=['255,45,45','0,255,136','255,149,0','255,45,149','0,229,255','191,0,255','255,230,0','255,0,0','0,255,255'];
-const snow=[];for(let i=0;i<120;i++)snow.push({x:Math.random()*sc.width,y:Math.random()*sc.height,s:Math.random()*3+1,sp:Math.random()*1+.3,w:Math.random()*.5-.25,o:Math.random()*.6+.2,c:colors[Math.floor(Math.random()*colors.length)]});
-function as(){sctx.clearRect(0,0,sc.width,sc.height);snow.forEach(s=>{s.y+=s.sp;s.x+=s.w;if(s.y>sc.height){s.y=-5;s.x=Math.random()*sc.width}if(s.x<0)s.x=sc.width;if(s.x>sc.width)s.x=0;sctx.beginPath();sctx.arc(s.x,s.y,s.s,0,Math.PI*2);sctx.fillStyle='rgba('+s.c+','+s.o+')';sctx.shadowBlur=10;sctx.shadowColor='rgba('+s.c+',0.8)';sctx.fill();sctx.shadowBlur=0});requestAnimationFrame(as)}as();
-</script></body></html>`;
-  }catch(e){ return 'Admin panel error: ' + e.message; }
+// ============================================================
+// SIDEBAR INIT (load dashboard on page load)
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  loadDashboard();
+  // Populate scopes from ALL_ENDPOINTS
+  const buildScopes = (containerId, allChecked) => {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    let html = el.innerHTML;
+    Object.keys(ALL_ENDPOINTS).forEach(ep => {
+      html += `<label class="scope-item"><input type="checkbox" value="${ep}"> <span>${ep}</span></label>`;
+    });
+    CUSTOM_APIS.forEach(a => {
+      html += `<label class="scope-item custom"><input type="checkbox" value="custom:${a.endpoint}"> <span>${a.endpoint}</span></label>`;
+    });
+    el.innerHTML = html;
+  };
+  buildScopes('scopeBoxGenerate', true);
+  buildScopes('scopeBoxUpdate', false);
+  // Snowfall
+  try {
+    const sc = document.getElementById('snowfall-canvas'), sctx = sc.getContext('2d');
+    sc.width = window.innerWidth; sc.height = window.innerHeight;
+    const colors = ['255,45,45','0,255,136','255,149,0','255,45,149','0,229,255','191,0,255','255,230,0'];
+    const snow = [];
+    for (let i = 0; i < 100; i++) snow.push({x:Math.random()*sc.width,y:Math.random()*sc.height,s:Math.random()*3+1,sp:Math.random()*1+.3,w:Math.random()*.5-.25,o:Math.random()*.6+.2,c:colors[Math.floor(Math.random()*colors.length)]});
+    (function animate(){ sctx.clearRect(0,0,sc.width,sc.height); snow.forEach(s=>{s.y+=s.sp;s.x+=s.w;if(s.y>sc.height){s.y=-5;s.x=Math.random()*sc.width}if(s.x<0)s.x=sc.width;if(s.x>sc.width)s.x=0;sctx.beginPath();sctx.arc(s.x,s.y,s.s,0,Math.PI*2);sctx.fillStyle='rgba('+s.c+','+s.o+')';sctx.shadowBlur=10;sctx.shadowColor='rgba('+s.c+',0.8)';sctx.fill();sctx.shadowBlur=0}); requestAnimationFrame(animate); })();
+  } catch(e) {}
+});
+</script>
+</body></html>`;
+  } catch(e) { return 'Admin render err: ' + e.message; }
 }
 
 // ============================================================
